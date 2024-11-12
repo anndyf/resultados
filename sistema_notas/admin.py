@@ -1,21 +1,32 @@
 from django.contrib import admin
-from django.urls import path
-from .models import Turma, Estudante, Disciplina, NotaFinal, DisciplinaTurma
-from .views import upload_csv
+from django.urls import path, reverse
+from django.shortcuts import redirect, render
+from django.contrib import messages
+from django import forms
 from django.utils.html import format_html
 from django.contrib.admin.views.decorators import staff_member_required
-from django.shortcuts import redirect
-from .forms import DisciplinaMultipleForm
-from django.contrib import messages 
+from .models import Turma, Estudante, Disciplina, NotaFinal, DisciplinaTurma
+from .views import upload_csv
+from .forms import DisciplinaMultipleForm, NotaFinalForm
 
+# Formulário para selecionar a disciplina e lançar notas para os estudantes associados
+class LancaNotaPorDisciplinaForm(forms.Form):
+    disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.all(), required=True, label="Disciplina")
 
+# Inline para exibir e lançar notas dos estudantes em uma disciplina específica
+class NotaFinalInline(admin.TabularInline):
+    model = NotaFinal
+    extra = 0
+    fields = ('estudante', 'nota', 'status')
+    readonly_fields = ('estudante',)
+
+# Configuração de EstudanteAdmin para exibir notas como inline
 class EstudanteAdmin(admin.ModelAdmin):
     list_display = ('nome', 'turma')
     search_fields = ('nome',)
     ordering = ('nome',)
     list_filter = ('turma',)
-
-    # Template customizado para incluir o botão "Upload CSV"
+    inlines = [NotaFinalInline]
     change_list_template = "admin/sistema_notas/estudante_change_list.html"
 
     def get_urls(self):
@@ -27,9 +38,9 @@ class EstudanteAdmin(admin.ModelAdmin):
 
     @staff_member_required
     def upload_csv_view(self, request):
-        # Redireciona para a view de upload de CSV
         return upload_csv(request)
 
+# Configuração de TurmaAdmin com inline de estudantes
 class EstudanteInline(admin.TabularInline):
     model = Estudante
     extra = 0
@@ -39,6 +50,7 @@ class TurmaAdmin(admin.ModelAdmin):
     ordering = ('nome',)
     inlines = [EstudanteInline]
 
+# Configuração de DisciplinaAdmin com criação de múltiplas disciplinas
 class DisciplinaAdmin(admin.ModelAdmin):
     form = DisciplinaMultipleForm
     list_display = ('nome', 'turma')
@@ -51,22 +63,52 @@ class DisciplinaAdmin(admin.ModelAdmin):
                 turmas = form.cleaned_data['turmas']
                 nomes = [nome.strip() for nome in nomes.split(',')]
 
-                # Cria cada disciplina para cada combinação de nome e turma selecionada
                 for nome in nomes:
                     for turma in turmas:
                         Disciplina.objects.get_or_create(nome=nome, turma=turma)
 
-                # Adiciona uma mensagem de sucesso e redireciona
                 messages.success(request, "Disciplinas foram criadas com sucesso.")
                 return redirect('admin:sistema_notas_disciplina_changelist')
         
         return super().add_view(request, form_url, extra_context)
 
+# Configuração do admin para NotaFinal com botão para lançar notas por disciplina
 class NotaFinalAdmin(admin.ModelAdmin):
+    form = NotaFinalForm
     list_display = ('estudante', 'disciplina', 'nota', 'status')
-    list_filter = ('disciplina', 'status')
-    search_fields = ('estudante__nome', 'disciplina__nome')
+    list_filter = ('disciplina__turma', 'disciplina')
 
+    class Media:
+        js = ('/static/js/carregar_disciplinas.js',) 
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('lancar-notas/', self.admin_site.admin_view(self.lancar_notas_view), name='lancar_notas'),
+        ]
+        return custom_urls + urls
+
+    def lancar_notas_view(self, request):
+        if request.method == 'POST':
+            form = LancaNotaPorDisciplinaForm(request.POST)
+            if form.is_valid():
+                disciplina = form.cleaned_data['disciplina']
+                estudantes = Estudante.objects.filter(turma__disciplinas=disciplina)
+
+                for estudante in estudantes:
+                    NotaFinal.objects.get_or_create(estudante=estudante, disciplina=disciplina)
+
+                messages.success(request, f"Notas prontas para lançamento na disciplina {disciplina}.")
+                return redirect('admin:sistema_notas_notafinal_changelist')
+        else:
+            form = LancaNotaPorDisciplinaForm()
+
+        return render(request, 'admin/lancar_notas.html', {'form': form, 'title': 'Lançar Notas por Disciplina'})
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['lancar_notas_url'] = reverse('admin:lancar_notas')
+        return super().changelist_view(request, extra_context=extra_context)
 
 admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)

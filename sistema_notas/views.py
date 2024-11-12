@@ -3,6 +3,46 @@ from django.shortcuts import render, redirect
 from .models import Estudante, Turma
 from .forms import UploadCSVForm
 from django.contrib import messages
+from dal import autocomplete
+from django.http import JsonResponse
+from .models import Disciplina
+
+class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Disciplina.objects.none()
+
+        queryset = Disciplina.objects.all().order_by('nome')
+
+        turma_id = self.forwarded.get('turma', None)
+        if turma_id:
+            queryset = queryset.filter(turma__id=turma_id)
+
+        return queryset
+
+class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Estudante.objects.none()
+
+        queryset = Estudante.objects.all().order_by('nome')
+
+        turma_id = self.forwarded.get('turma', None)
+        disciplina_id = self.forwarded.get('disciplina', None)
+
+        # Filtra os estudantes com base na turma e, opcionalmente, na disciplina (dependendo do modelo)
+        if turma_id:
+            queryset = queryset.filter(turma__id=turma_id)
+
+        # Se existir um relacionamento entre estudante e disciplina, você pode adicionar um filtro adicional aqui
+        # Exemplo: queryset = queryset.filter(disciplina__id=disciplina_id)
+
+        return queryset
+    
+def carregar_disciplinas(request):
+    turma_id = request.GET.get('turma')
+    disciplinas = Disciplina.objects.filter(turma__id=turma_id).values('id', 'nome')
+    return JsonResponse(list(disciplinas), safe=False)
 
 def listar_status_turma(request, turma_id):
     turma = Turma.objects.get(id=turma_id)
