@@ -77,6 +77,11 @@ class NotaFinalAdmin(admin.ModelAdmin):
     form = NotaFinalForm
     list_display = ('estudante', 'disciplina', 'nota', 'status')
     list_filter = ('disciplina__turma', 'disciplina')
+    readonly_fields = ('status',)
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.user = request.user  # Passa o usuário atual para o formulário
+        return form
 
     class Media:
         js = ('/static/js/carregar_disciplinas.js',) 

@@ -5,10 +5,11 @@ from .forms import UploadCSVForm
 from django.contrib import messages
 from dal import autocomplete
 from django.http import JsonResponse
-from .models import Disciplina
+from .models import Disciplina, Estudante
+from dal import autocomplete
 
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
-    def get_queryset(self):
+   def get_queryset(self):
         if not self.request.user.is_authenticated:
             return Disciplina.objects.none()
 
@@ -28,14 +29,10 @@ class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
         queryset = Estudante.objects.all().order_by('nome')
 
         turma_id = self.forwarded.get('turma', None)
-        disciplina_id = self.forwarded.get('disciplina', None)
 
-        # Filtra os estudantes com base na turma e, opcionalmente, na disciplina (dependendo do modelo)
+        # Filtra apenas pela turma, já que 'disciplinas' não existe no modelo Estudante
         if turma_id:
             queryset = queryset.filter(turma__id=turma_id)
-
-        # Se existir um relacionamento entre estudante e disciplina, você pode adicionar um filtro adicional aqui
-        # Exemplo: queryset = queryset.filter(disciplina__id=disciplina_id)
 
         return queryset
     

@@ -50,26 +50,40 @@ class NotaFinalForm(forms.ModelForm):
         queryset=Estudante.objects.none(),
         required=True,
         label="Estudante",
-        widget=autocomplete.ModelSelect2(url='estudante-autocomplete', forward=['turma', 'disciplina'])  # Envia os valores de "Turma" e "Disciplina"
+        widget=autocomplete.ModelSelect2(url='estudante-autocomplete', forward=['turma', 'disciplina'])
+    )
+    
+    nota = forms.FloatField(
+        label="Nota",
+        help_text="Digite -1 para classificar como desistente"
     )
 
     class Meta:
         model = NotaFinal
-        fields = ['turma', 'disciplina', 'estudante', 'nota', 'status']  # Ordem dos campos ajustada
+        fields = ['turma', 'disciplina', 'estudante', 'nota', 'status']
 
     def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)  # Obtenha o usuário que está salvando
         super().__init__(*args, **kwargs)
+
         if 'turma' in self.data:
             try:
                 turma_id = int(self.data.get('turma'))
                 self.fields['disciplina'].queryset = Disciplina.objects.filter(turma__id=turma_id)
             except (ValueError, TypeError):
                 pass
-        elif self.instance.pk:
-            self.fields['disciplina'].queryset = self.instance.turma.disciplinas_set
 
-class LancaNotaPorDisciplinaForm(forms.Form):
-    disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.all(), required=True, label="Disciplina")
-    
-    class Meta:
-        fields = ['disciplina']
+        if 'disciplina' in self.data:
+            try:
+                disciplina_id = int(self.data.get('disciplina'))
+                self.fields['estudante'].queryset = Estudante.objects.filter(turma__id=disciplina_id)
+            except (ValueError, TypeError):
+                pass
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.pk:  # Se for um novo registro
+            instance.registrado_por = self.user
+        if commit:
+            instance.save()
+        return instance
