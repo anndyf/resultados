@@ -1,9 +1,11 @@
+from dal import autocomplete
 from django import forms
 from .models import Disciplina, Turma
 from django.contrib import messages
 from django.shortcuts import redirect
 from .models import NotaFinal, Turma, Disciplina, Estudante
 from dal import autocomplete
+from django.core.exceptions import ValidationError
 
 class UploadCSVForm(forms.Form):
     arquivo_csv = forms.FileField(label='Selecione o arquivo CSV')
@@ -39,7 +41,11 @@ class LancaNotaForm(forms.Form):
 
 
 class NotaFinalForm(forms.ModelForm):
-    turma = forms.ModelChoiceField(queryset=Turma.objects.all(), required=True, label="Turma")
+    turma = forms.ModelChoiceField(
+        queryset=Turma.objects.all(),
+        required=True,
+        label="Turma"
+    )
     disciplina = forms.ModelChoiceField(
         queryset=Disciplina.objects.none(),
         required=True,
@@ -52,7 +58,6 @@ class NotaFinalForm(forms.ModelForm):
         label="Estudante",
         widget=autocomplete.ModelSelect2(url='estudante-autocomplete', forward=['turma', 'disciplina'])
     )
-    
     nota = forms.FloatField(
         label="Nota",
         help_text="Digite -1 para classificar como desistente"
@@ -60,30 +65,34 @@ class NotaFinalForm(forms.ModelForm):
 
     class Meta:
         model = NotaFinal
-        fields = ['turma', 'disciplina', 'estudante', 'nota', 'status']
+        fields = ['turma', 'disciplina', 'estudante', 'nota']
 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)  # Obtenha o usuário que está salvando
         super().__init__(*args, **kwargs)
 
+        # Carregar disciplinas com base na turma
         if 'turma' in self.data:
             try:
                 turma_id = int(self.data.get('turma'))
-                self.fields['disciplina'].queryset = Disciplina.objects.filter(turma__id=turma_id)
+                self.fields['disciplina'].queryset = Disciplina.objects.filter(turma_id=turma_id)
             except (ValueError, TypeError):
-                pass
+                self.fields['disciplina'].queryset = Disciplina.objects.none()
 
+        # Carregar estudantes com base na disciplina
         if 'disciplina' in self.data:
             try:
                 disciplina_id = int(self.data.get('disciplina'))
-                self.fields['estudante'].queryset = Estudante.objects.filter(turma__id=disciplina_id)
+                self.fields['estudante'].queryset = Estudante.objects.filter(turma_id=self.data.get('turma'))
             except (ValueError, TypeError):
-                pass
+                self.fields['estudante'].queryset = Estudante.objects.none()
 
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        if not instance.pk:  # Se for um novo registro
-            instance.registrado_por = self.user
-        if commit:
-            instance.save()
-        return instance
+    def clean(self):
+        cleaned_data = super().clean()
+        estudante = cleaned_data.get('estudante')
+        disciplina = cleaned_data.get('disciplina')
+
+        # Verificar duplicatas
+        if NotaFinal.objects.filter(estudante=estudante, disciplina=disciplina).exists():
+            raise ValidationError("Já existe uma nota cadastrada para este estudante nesta disciplina.")
+
+        return cleaned_data

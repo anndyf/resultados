@@ -77,6 +77,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
     form = NotaFinalForm
     list_display = ('estudante', 'disciplina', 'nota', 'status')
     list_filter = ('disciplina__turma', 'disciplina')
+    list_editable = ('nota',)
     readonly_fields = ('status',)
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -114,6 +115,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context['lancar_notas_url'] = reverse('admin:lancar_notas')
         return super().changelist_view(request, extra_context=extra_context)
+
 
 admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)

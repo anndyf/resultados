@@ -36,25 +36,19 @@ class NotaFinal(models.Model):
     estudante = models.ForeignKey('Estudante', on_delete=models.CASCADE, related_name='notas')
     disciplina = models.ForeignKey('Disciplina', on_delete=models.CASCADE, related_name='notas')
     nota = models.FloatField()
-    registrado_por = models.ForeignKey(User, on_delete=models.CASCADE)  # Certifique-se disso
     STATUS_CHOICES = [
         ('Aprovado', 'Aprovado'),
         ('Recuperação', 'Recuperação'),
         ('Desistente', 'Desistente'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, blank=True)
-    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notas_registradas')
 
     class Meta:
-        unique_together = ('estudante', 'disciplina')
+        unique_together = ('estudante', 'disciplina')  # Garante que cada par estudante-disciplina seja único
         verbose_name = 'Nota Final'
         verbose_name_plural = 'Notas Finais'
 
     def save(self, *args, **kwargs):
-        # Verificar se a nota já existe para o estudante e disciplina antes de salvar
-        if NotaFinal.objects.filter(estudante=self.estudante, disciplina=self.disciplina).exists():
-            raise ValidationError("Já existe uma nota para esse estudante nessa disciplina.")
-
         # Define o status automaticamente com base na nota
         if self.nota == -1:
             self.status = 'Desistente'
@@ -62,10 +56,6 @@ class NotaFinal(models.Model):
             self.status = 'Recuperação'
         else:
             self.status = 'Aprovado'
-        
-        # Define o usuário que registrou, se ainda não estiver definido
-        if not self.registrado_por and kwargs.get('user'):
-            self.registrado_por = kwargs.pop('user')
 
         super().save(*args, **kwargs)
 

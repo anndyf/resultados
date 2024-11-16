@@ -9,32 +9,25 @@ from .models import Disciplina, Estudante
 from dal import autocomplete
 
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
-   def get_queryset(self):
+    def get_queryset(self):
+        print("Chamando DisciplinaAutocomplete...")
         if not self.request.user.is_authenticated:
             return Disciplina.objects.none()
-
-        queryset = Disciplina.objects.all().order_by('nome')
-
         turma_id = self.forwarded.get('turma', None)
         if turma_id:
-            queryset = queryset.filter(turma__id=turma_id)
-
-        return queryset
+            return Disciplina.objects.filter(turma_id=turma_id)
+        return Disciplina.objects.none()
 
 class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
     def get_queryset(self):
+        print("Chamando EstudanteAutocomplete...")
         if not self.request.user.is_authenticated:
             return Estudante.objects.none()
-
-        queryset = Estudante.objects.all().order_by('nome')
-
         turma_id = self.forwarded.get('turma', None)
-
-        # Filtra apenas pela turma, já que 'disciplinas' não existe no modelo Estudante
-        if turma_id:
-            queryset = queryset.filter(turma__id=turma_id)
-
-        return queryset
+        disciplina_id = self.forwarded.get('disciplina', None)
+        if turma_id and disciplina_id:
+            return Estudante.objects.filter(turma_id=turma_id)
+        return Estudante.objects.none()
     
 def carregar_disciplinas(request):
     turma_id = request.GET.get('turma')
