@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import Turma, Estudante, Disciplina, NotaFinal, DisciplinaTurma
 from .views import upload_csv
-from .forms import DisciplinaMultipleForm, NotaFinalForm
+from .forms import DisciplinaMultipleForm, LancarNotasForm, NotaFinalForm
 
 # Formulário para selecionar a disciplina e lançar notas para os estudantes associados
 class LancaNotaPorDisciplinaForm(forms.Form):
@@ -79,44 +79,74 @@ class NotaFinalAdmin(admin.ModelAdmin):
     list_filter = ('disciplina__turma', 'disciplina')
     list_editable = ('nota',)
     readonly_fields = ('status',)
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        form.user = request.user  # Passa o usuário atual para o formulário
-        return form
-
-    class Media:
-        js = ('/static/js/carregar_disciplinas.js',) 
 
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('lancar-notas/', self.admin_site.admin_view(self.lancar_notas_view), name='lancar_notas'),
+            path(
+                'lancar-notas-turma/',
+                self.admin_site.admin_view(self.lancar_notas_turma_view),
+                name='lancar_notas_turma'
+            ),
         ]
         return custom_urls + urls
 
-    def lancar_notas_view(self, request):
+    def lancar_notas_turma_view(self, request):
+        turmas = Turma.objects.all()
+        disciplinas = []
+        estudantes_com_dados = []
+
+        turma_id = request.GET.get('turma')
+        disciplina_id = request.GET.get('disciplina')
+
+        if turma_id:
+            disciplinas = Disciplina.objects.filter(turma_id=turma_id)
+
+        if turma_id and disciplina_id:
+            estudantes = Estudante.objects.filter(turma_id=turma_id)
+            for estudante in estudantes:
+                nota_final = NotaFinal.objects.filter(estudante=estudante, disciplina_id=disciplina_id).first()
+                estudantes_com_dados.append({
+                    'id': estudante.id,
+                    'nome': estudante.nome,
+                    'nota': nota_final.nota if nota_final else "Sem nota",
+                    'status': nota_final.status if nota_final else "Sem status",
+                })
+
         if request.method == 'POST':
-            form = LancaNotaPorDisciplinaForm(request.POST)
-            if form.is_valid():
-                disciplina = form.cleaned_data['disciplina']
-                estudantes = Estudante.objects.filter(turma__disciplinas=disciplina)
+            for estudante in estudantes:
+                nota = request.POST.get(f"nota_{estudante.id}")
+                if nota:
+                    try:
+                        # Substituir vírgula por ponto antes de converter
+                        nota_float = float(nota.replace(',', '.'))
+                        NotaFinal.objects.update_or_create(
+                            estudante=estudante,
+                            disciplina_id=disciplina_id,
+                            defaults={'nota': nota_float},
+                        )
+                    except ValueError:
+                        messages.error(request, f"Nota inválida para o estudante {estudante.nome}: {nota}")
+                        continue
 
-                for estudante in estudantes:
-                    NotaFinal.objects.get_or_create(estudante=estudante, disciplina=disciplina)
+            messages.success(request, "Notas salvas com sucesso!")
+            return redirect('admin:sistema_notas_notafinal_changelist')
 
-                messages.success(request, f"Notas prontas para lançamento na disciplina {disciplina}.")
-                return redirect('admin:sistema_notas_notafinal_changelist')
-        else:
-            form = LancaNotaPorDisciplinaForm()
-
-        return render(request, 'admin/lancar_notas.html', {'form': form, 'title': 'Lançar Notas por Disciplina'})
-
+        return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
+            'title': 'Lançar Notas por Turma',
+            'turmas': turmas,
+            'disciplinas': disciplinas,
+            'estudantes_com_dados': estudantes_com_dados,
+            'turma_id': turma_id,
+            'disciplina_id': disciplina_id,
+    })
     def changelist_view(self, request, extra_context=None):
+        """
+        Adiciona o botão de Lançar Notas por Turma na página principal.
+        """
         extra_context = extra_context or {}
-        extra_context['lancar_notas_url'] = reverse('admin:lancar_notas')
+        extra_context['lancar_notas_turma_url'] = reverse('admin:lancar_notas_turma')
         return super().changelist_view(request, extra_context=extra_context)
-
-
 admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)
 admin.site.register(Disciplina, DisciplinaAdmin)

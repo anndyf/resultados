@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+    {{ block.super }}
+    <a class="button" href="{{ lancar_notas_turma_url }}">Lançar Notas por Turma</a>
+{% endblock %}

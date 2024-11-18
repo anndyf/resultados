@@ -49,14 +49,20 @@ class NotaFinal(models.Model):
         verbose_name_plural = 'Notas Finais'
 
     def save(self, *args, **kwargs):
-        # Define o status automaticamente com base na nota
-        if self.nota == -1:
-            self.status = 'Desistente'
-        elif self.nota < 5:
-            self.status = 'Recuperação'
-        else:
-            self.status = 'Aprovado'
+        try:
+            # Converte a nota para float antes de verificar o status
+            self.nota = float(self.nota)
 
+            # Define o status automaticamente com base na nota
+            if self.nota == -1:
+                self.status = 'Desistente'
+            elif self.nota < 5:
+                self.status = 'Recuperação'
+            else:
+                self.status = 'Aprovado'
+        except ValueError:
+            raise ValueError("A nota deve ser um número válido.")
+        
         super().save(*args, **kwargs)
 
     def __str__(self):

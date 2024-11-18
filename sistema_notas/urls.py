@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import DisciplinaAutocomplete, EstudanteAutocomplete
+from .views import DisciplinaAutocomplete, EstudanteAutocomplete,lancar_notas_por_turma
 
 urlpatterns = [
     path('turma/<int:turma_id>/status/', views.listar_status_turma, name='listar_status_turma'),
@@ -9,5 +9,6 @@ urlpatterns = [
     path('carregar-disciplinas/', views.carregar_disciplinas, name='carregar_disciplinas'),
     path('disciplina-autocomplete/', DisciplinaAutocomplete.as_view(), name='disciplina-autocomplete'),
     path('estudante-autocomplete/', EstudanteAutocomplete.as_view(), name='estudante-autocomplete'),
+    path('admin/sistema_notas/notafinal/lancar-notas-turma/', lancar_notas_por_turma, name='lancar_notas_turma')
 
 ]

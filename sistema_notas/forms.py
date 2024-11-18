@@ -96,3 +96,16 @@ class NotaFinalForm(forms.ModelForm):
             raise ValidationError("Já existe uma nota cadastrada para este estudante nesta disciplina.")
 
         return cleaned_data
+    
+class LancarNotasForm(forms.Form):
+    turma = forms.ModelChoiceField(queryset=Turma.objects.all(), label="Turma")
+    disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.none(), label="Disciplina")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'turma' in self.data:
+            try:
+                turma_id = int(self.data.get('turma'))
+                self.fields['disciplina'].queryset = Disciplina.objects.filter(turma_id=turma_id)
+            except (ValueError, TypeError):
+                pass
