@@ -170,3 +170,35 @@ def lancar_notas_por_turma(request):
         'turma_id': turma_id,
         'disciplina_id': disciplina_id,
     })
+
+def relatorio_status_turma(request, turma_id):
+    turma = Turma.objects.get(id=turma_id)
+    disciplinas = Disciplina.objects.filter(turma=turma)
+    estudantes = Estudante.objects.filter(turma=turma)
+
+    # Montar a tabela de status
+    tabela = []
+    for estudante in estudantes:
+        linha = {
+            'estudante': estudante.nome,
+            'status_disciplinas': []
+        }
+        for disciplina in disciplinas:
+            nota_final = NotaFinal.objects.filter(estudante=estudante, disciplina=disciplina).first()
+            if nota_final:
+                linha['status_disciplinas'].append({
+                    'disciplina': disciplina.nome,
+                    'status': nota_final.status
+                })
+            else:
+                linha['status_disciplinas'].append({
+                    'disciplina': disciplina.nome,
+                    'status': 'Sem nota'
+                })
+        tabela.append(linha)
+
+    return render(request, 'sistema_notas/relatorio_status_turma.html', {
+        'turma': turma,
+        'disciplinas': disciplinas,
+        'tabela': tabela,
+    })

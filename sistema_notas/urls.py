@@ -9,6 +9,7 @@ urlpatterns = [
     path('carregar-disciplinas/', views.carregar_disciplinas, name='carregar_disciplinas'),
     path('disciplina-autocomplete/', DisciplinaAutocomplete.as_view(), name='disciplina-autocomplete'),
     path('estudante-autocomplete/', EstudanteAutocomplete.as_view(), name='estudante-autocomplete'),
-    path('admin/sistema_notas/notafinal/lancar-notas-turma/', lancar_notas_por_turma, name='lancar_notas_turma')
+    path('admin/sistema_notas/notafinal/lancar-notas-turma/', lancar_notas_por_turma, name='lancar_notas_turma'),
+    path('relatorio-status-turma/<int:turma_id>/', views.relatorio_status_turma, name='relatorio_status_turma'),
 
 ]

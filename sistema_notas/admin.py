@@ -71,6 +71,13 @@ class TurmaAdmin(admin.ModelAdmin):
     list_display = ('nome',)
     ordering = ('nome',)
     inlines = [EstudanteInline]
+    list_display = ('nome', 'acoes')
+
+    def acoes(self, obj):
+        url = reverse('relatorio_status_turma', args=[obj.id])
+        return format_html('<a href="{}" class="button">Ver Relatório</a>', url)
+
+    acoes.short_description = 'Ações'
 
 # Configuração do admin para o modelo Disciplina
 class DisciplinaAdmin(admin.ModelAdmin):
