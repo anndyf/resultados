@@ -11,15 +11,16 @@
 
     <!-- Exibe mensagens de erro do formulário -->
     {% if errors %}
-        <div style="text-align: left; color: red; margin-bottom: 20px;">
-            <strong>Erros encontrados:</strong>
-            <ul class="errorlist" style="list-style-type: disc; padding-left: 20px;">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        </div>
+    <div style="margin-bottom: 20px; text-align: left; color: red;">
+        <strong>Erros encontrados:</strong>
+        <ul>
+            {% for error in errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
     {% endif %}
+
     <form method="get" id="filter-form" style="margin-bottom: 20px;">
         <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <label for="turma" style="font-weight: bold;">Turma:</label>
@@ -51,7 +52,8 @@
                 <tr style="background-color: #f2f2f2; text-align: left;">
                     <th style="padding: 10px; border: 1px solid #ccc;">#</th>
                     <th style="padding: 10px; border: 1px solid #ccc;">Estudante</th>
-                    <th style="padding: 10px; border: 1px solid #ccc;">Nota</th>
+                    <th style="padding: 10px; border: 1px solid #ccc;">Nota Salva</th>
+                    <th style="padding: 10px; border: 1px solid #ccc;">Editar Nota</th>
                     <th style="padding: 10px; border: 1px solid #ccc;">Status</th>
                 </tr>
             </thead>
@@ -60,18 +62,20 @@
                 <tr>
                     <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">{{ forloop.counter }}</td>
                     <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nome }}</td>
+                    <!-- Exibe o valor da nota salva -->
+                    <td style="padding: 15px; border: 1px solid #ccc; text-align: center;">{{ estudante.nota }}</td>
+                    <!-- Campo de input para edição -->
                     <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">
                         <input
-                            type="number"
-                            name="nota_{{ estudante.id }}"
-                            value="{% if estudante.nota is not None %}{{ estudante.nota }}{% else %}{% endif %}"
-                            placeholder="Sem nota"
-                            min="-1"
-                            max="10"
-                            step="0.01"
-                            oninput="validateInput(this)"
-                            style="width: 100px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; text-align: center;"
-                        >
+                        type="number"
+                        name="nota_{{ estudante.id }}"
+                        value=""
+                        placeholder="Nova nota"
+                        min="-1"
+                        max="10"
+                        step="0.01"
+                        style="width: 100px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; text-align: center;"
+                    >
                     </td>
                     <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.status }}</td>
                 </tr>
@@ -108,54 +112,27 @@
         });
     });
 
-    // Ajusta placeholders nos campos de nota
-    document.addEventListener('DOMContentLoaded', function () {
-        const notaFields = document.querySelectorAll('input[name^="nota_"]');
-
-        notaFields.forEach(function (field) {
-            field.addEventListener('focus', function () {
-                this.placeholder = '';  // Remove o placeholder no foco
-            });
-
-            field.addEventListener('blur', function () {
-                if (this.value === '') {
-                    this.placeholder = 'Sem nota';  // Restaura o placeholder ao sair
-                }
-            });
-        });
-    });
-</script>
-<script>
+    // Validação de entrada no frontend
     document.addEventListener('DOMContentLoaded', function () {
         const notaInputs = document.querySelectorAll('input[name^="nota_"]');
 
         notaInputs.forEach(function (input) {
             input.addEventListener('input', function () {
                 const value = parseFloat(this.value);
-                if (isNaN(value) || value < -1 || value > 10) {
-                    this.style.border = '1px solid red';
-                    this.setCustomValidity('A nota deve estar entre -1 e 10.');
-                } else {
+                if (!isNaN(value) && value >= -1 && value <= 10) {
                     this.style.border = '';
                     this.setCustomValidity('');
+                } else if (this.value === '') {
+                    // Permite campos vazios sem erro
+                    this.style.border = '';
+                    this.setCustomValidity('');
+                } else {
+                    this.style.border = '1px solid red';
+                    this.setCustomValidity('A nota deve estar entre -1 e 10.');
                 }
             });
         });
     });
-</script>
-<script>
-    function validateInput(input) {
-        const value = parseFloat(input.value);
-
-        // Se o valor for inválido ou fora do intervalo, limpa o campo
-        if (isNaN(value) || value < -1 || value > 10) {
-            input.style.border = "1px solid red"; // Destaca o campo com borda vermelha
-            input.setCustomValidity("A nota deve estar entre -1 e 10.");
-        } else {
-            input.style.border = ""; // Remove o destaque se o valor for válido
-            input.setCustomValidity(""); // Remove o erro de validação
-        }
-    }
 </script>
 
 {% endblock %}

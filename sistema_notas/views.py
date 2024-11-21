@@ -165,7 +165,11 @@ def lancar_notas_por_turma(request):
 
         # Adicionar notas aos estudantes
         for estudante in estudantes:
-            estudante.nota = notas_map.get(estudante.id)
+            nota_obj = notas_map.get(estudante.id)  # Obter o objeto NotaFinal correspondente
+            if nota_obj:
+                estudante.nota = nota_obj  # Atribuir o objeto NotaFinal completo
+            else:
+                estudante.nota = None  # Caso não exista, definir como None
 
     # Processar submissão do formulário
     if request.method == 'POST':
@@ -187,28 +191,27 @@ def lancar_notas_por_turma(request):
                                 errors.append(f"A nota {nota} para o estudante {estudante.nome} deve estar entre -1 e 10.")
                         except ValueError:
                             errors.append(f"A nota '{nota}' fornecida para o estudante {estudante.nome} é inválida.")
-                if errors:
-                    # Lança as mensagens de erro coletadas
-                    raise ValidationError(errors)
+
+            # Mensagem de sucesso ou erro geral
+            if not errors:
                 messages.success(request, "Notas válidas foram salvas com sucesso!")
                 return redirect('admin:sistema_notas_notafinal_changelist')
-        except ValidationError as ve:
-            # Captura as mensagens de erro do ValidationError
-            for error in ve.messages:
-                errors.append(error)
+            else:
+                messages.error(request, "Algumas notas não foram salvas devido a erros.")
         except Exception as e:
             messages.error(request, f"Erro inesperado: {e}")
 
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
-        'title': 'Lançar Notas por Turma',
-        'turmas': turmas,
-        'disciplinas': disciplinas,
-        'estudantes': estudantes,
-        'turma_id': turma_id,
-        'disciplina_id': disciplina_id,
-        'form': form,
-        'errors': errors,  # Passar erros para o template
-    })
+    'title': 'Lançar Notas por Turma',
+    'turmas': turmas,
+    'disciplinas': disciplinas,
+    'estudantes_com_dados': estudantes,  # Certifique-se de que esta variável contém os dados
+    'turma_id': turma_id,
+    'disciplina_id': disciplina_id,
+    'form': form,
+    'errors': errors,
+})
+
 
 
 def relatorio_status_turma(request, turma_id):
