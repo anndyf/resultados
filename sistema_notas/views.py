@@ -1,24 +1,30 @@
 import csv
 from django.shortcuts import render, redirect
-from .models import Estudante, NotaFinal, Turma
-from .forms import UploadCSVForm
+from django.http import JsonResponse
 from django.contrib import messages
 from dal import autocomplete
-from django.http import JsonResponse
-from .models import Disciplina, Estudante
-from dal import autocomplete
+from .models import Estudante, NotaFinal, Turma, Disciplina
+from .forms import UploadCSVForm
 
+# Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
+    """
+    Retorna disciplinas relacionadas a uma turma específica para autocomplete.
+    """
     def get_queryset(self):
         print("Chamando DisciplinaAutocomplete...")
         if not self.request.user.is_authenticated:
-            return Disciplina.objects.none()
-        turma_id = self.forwarded.get('turma', None)
+            return Disciplina.objects.none()  # Garante que usuários não autenticados não tenham acesso
+        turma_id = self.forwarded.get('turma', None)  # Obtém o ID da turma
         if turma_id:
             return Disciplina.objects.filter(turma_id=turma_id)
         return Disciplina.objects.none()
 
+# Classe para autocomplete de estudantes no formulário
 class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
+    """
+    Retorna estudantes relacionados a uma turma e disciplina específicas para autocomplete.
+    """
     def get_queryset(self):
         print("Chamando EstudanteAutocomplete...")
         if not self.request.user.is_authenticated:
@@ -28,49 +34,108 @@ class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
         if turma_id and disciplina_id:
             return Estudante.objects.filter(turma_id=turma_id)
         return Estudante.objects.none()
-    
+
+# View para carregar disciplinas dinamicamente com base na turma selecionada
 def carregar_disciplinas(request):
+    """
+    Retorna uma lista de disciplinas em formato JSON para preenchimento dinâmico em formulários.
+    """
     turma_id = request.GET.get('turma')
     disciplinas = Disciplina.objects.filter(turma_id=turma_id)
     data = [{'id': d.id, 'nome': d.nome} for d in disciplinas]
     return JsonResponse(data, safe=False)
 
+# View para carregar estudantes dinamicamente com base na disciplina selecionada
 def carregar_estudantes(request):
+    """
+    Retorna uma lista de estudantes em formato JSON para preenchimento dinâmico em formulários.
+    """
     disciplina_id = request.GET.get('disciplina')
     estudantes = Estudante.objects.filter(turma__disciplinas__id=disciplina_id)
     data = [{'id': e.id, 'nome': e.nome} for e in estudantes]
     return JsonResponse(data, safe=False)
 
+# View para listar o status dos estudantes de uma turma
 def listar_status_turma(request, turma_id):
+    """
+    Exibe a lista de estudantes e suas notas em uma turma específica.
+    """
     turma = Turma.objects.get(id=turma_id)
     estudantes = turma.estudantes.all()
     return render(request, 'sistema_notas/listar_status_turma.html', {'turma': turma, 'estudantes': estudantes})
 
+# View para upload e processamento de arquivos CSV
 def upload_csv(request):
-    if request.method == 'POST':
+    """
+    View para fazer upload de estudantes em massa via arquivo CSV, com pré-visualização.
+    """
+    preview = None  # Lista para armazenar dados do arquivo CSV para pré-visualização
+
+    if request.method == 'POST' and 'confirm_upload' not in request.POST:
         form = UploadCSVForm(request.POST, request.FILES)
+        csv_file = request.FILES.get('arquivo_csv', None)
+        if not csv_file:
+            messages.error(request, "Nenhum arquivo foi enviado. Por favor, selecione um arquivo.")
+            return redirect('upload_csv')
+
         if form.is_valid():
-            csv_file = request.FILES['arquivo_csv']
             try:
                 decoded_file = csv_file.read().decode('utf-8').splitlines()
                 reader = csv.reader(decoded_file)
-                next(reader)  # Ignora o cabeçalho do CSV
-                for row in reader:
-                    nome_estudante = row[0]
-                    turma_nome = row[1]
-                    # Verifica se a turma já existe; caso contrário, cria uma nova
-                    turma, created = Turma.objects.get_or_create(nome=turma_nome)
-                    # Cadastra o estudante associado à turma
-                    Estudante.objects.create(nome=nome_estudante, turma=turma)
-                messages.success(request, "Estudantes cadastrados com sucesso!")
+                preview = list(reader)  # Armazena os dados para exibição
+
+                if len(preview) > 1:
+                    # Armazena os dados na sessão para confirmação posterior
+                    request.session['csv_data'] = preview
+                    messages.info(request, "Confirme os dados antes de prosseguir com o upload.")
+                else:
+                    messages.error(request, "O arquivo CSV está vazio ou no formato errado.")
             except Exception as e:
                 messages.error(request, f"Erro ao processar o arquivo: {e}")
+    elif request.method == 'POST' and 'confirm_upload' in request.POST:
+        # Segunda etapa: Confirmação do upload
+        csv_data = request.session.get('csv_data', None)
+        if not csv_data:
+            messages.error(request, "Nenhum arquivo foi encontrado para confirmação.")
             return redirect('upload_csv')
+
+        duplicados_encontrados = False  # Flag para verificar duplicatas
+        try:
+            for row in csv_data[1:]:  # Ignora o cabeçalho
+                nome_estudante = row[0].strip()
+                turma_nome = row[1].strip()
+
+                # Busca ou cria a turma
+                turma, _ = Turma.objects.get_or_create(nome=turma_nome)
+
+                # Verifica se o estudante já existe
+                estudante_existente = Estudante.objects.filter(nome=nome_estudante, turma=turma).exists()
+                if estudante_existente:
+                    duplicados_encontrados = True
+                    break  # Interrompe o processo na primeira duplicata encontrada
+                else:
+                    Estudante.objects.create(nome=nome_estudante, turma=turma)
+
+            # Verifica se houve duplicatas
+            if duplicados_encontrados:
+                messages.error(request, "Arquivo contém estudantes já cadastrados. Por favor, envie outro arquivo.")
+                return redirect('upload_csv')
+
+            # Limpa os dados da sessão após o sucesso
+            del request.session['csv_data']
+            messages.success(request, "Estudantes cadastrados com sucesso!")
+        except Exception as e:
+            messages.error(request, f"Erro ao processar o arquivo: {e}")
+        return redirect('upload_csv')
     else:
         form = UploadCSVForm()
-    return render(request, 'sistema_notas/upload_csv.html', {'form': form})
 
+    return render(request, 'sistema_notas/upload_csv.html', {'form': form, 'preview': preview})
+# View para lançar notas por turma
 def lancar_notas_por_turma(request):
+    """
+    Permite lançar notas para uma turma e disciplina específicas.
+    """
     turmas = Turma.objects.all()
     disciplinas = []
     estudantes = []

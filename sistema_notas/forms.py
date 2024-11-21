@@ -1,16 +1,21 @@
 from dal import autocomplete
 from django import forms
-from .models import Disciplina, Turma
-from django.contrib import messages
-from django.shortcuts import redirect
 from .models import NotaFinal, Turma, Disciplina, Estudante
-from dal import autocomplete
 from django.core.exceptions import ValidationError
 
+# Formulário para upload de arquivos CSV
 class UploadCSVForm(forms.Form):
-    arquivo_csv = forms.FileField(label='Selecione o arquivo CSV')
+    """
+    Formulário para permitir o upload de arquivos CSV no sistema.
+    """
+    arquivo_csv = forms.FileField(label='Selecione o arquivo CSV')  # Campo de upload de arquivo
 
+
+# Formulário para criar várias disciplinas de uma vez
 class DisciplinaMultipleForm(forms.ModelForm):
+    """
+    Formulário para criar várias disciplinas associadas a turmas.
+    """
     nome = forms.CharField(
         widget=forms.TextInput(attrs={'placeholder': 'Digite várias disciplinas separadas por vírgula'}),
         help_text="Exemplo: Matemática, Física, Química"
@@ -26,21 +31,33 @@ class DisciplinaMultipleForm(forms.ModelForm):
         model = Disciplina
         fields = ['nome', 'turmas']
 
+
+# Formulário para lançar notas para uma turma e disciplina
 class LancaNotaForm(forms.Form):
+    """
+    Formulário para lançar notas vinculadas a uma turma e disciplina específicas.
+    """
     turma = forms.ModelChoiceField(queryset=Turma.objects.all(), label="Turma")
     disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.none(), label="Disciplina")
-    
+
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa o formulário e ajusta o queryset de disciplinas baseado na turma.
+        """
         super().__init__(*args, **kwargs)
         if 'turma' in self.data:
             try:
                 turma_id = int(self.data.get('turma'))
                 self.fields['disciplina'].queryset = Disciplina.objects.filter(turma_id=turma_id)
             except (ValueError, TypeError):
-                pass
+                self.fields['disciplina'].queryset = Disciplina.objects.none()
 
 
+# Formulário para adicionar ou editar uma nota final
 class NotaFinalForm(forms.ModelForm):
+    """
+    Formulário para registrar notas finais vinculadas a estudantes, turmas e disciplinas.
+    """
     turma = forms.ModelChoiceField(
         queryset=Turma.objects.all(),
         required=True,
@@ -68,6 +85,9 @@ class NotaFinalForm(forms.ModelForm):
         fields = ['turma', 'disciplina', 'estudante', 'nota']
 
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa o formulário, ajustando os querysets com base na seleção de turma e disciplina.
+        """
         super().__init__(*args, **kwargs)
 
         # Carregar disciplinas com base na turma
@@ -78,15 +98,22 @@ class NotaFinalForm(forms.ModelForm):
             except (ValueError, TypeError):
                 self.fields['disciplina'].queryset = Disciplina.objects.none()
 
-        # Carregar estudantes com base na disciplina
+        # Carregar estudantes com base na disciplina e turma
         if 'disciplina' in self.data:
             try:
                 disciplina_id = int(self.data.get('disciplina'))
-                self.fields['estudante'].queryset = Estudante.objects.filter(turma_id=self.data.get('turma'))
+                turma_id = int(self.data.get('turma'))
+                self.fields['estudante'].queryset = Estudante.objects.filter(
+                    turma_id=turma_id,
+                    turma__disciplinas__id=disciplina_id
+                )
             except (ValueError, TypeError):
                 self.fields['estudante'].queryset = Estudante.objects.none()
 
     def clean(self):
+        """
+        Valida os dados do formulário para evitar duplicatas de notas finais.
+        """
         cleaned_data = super().clean()
         estudante = cleaned_data.get('estudante')
         disciplina = cleaned_data.get('disciplina')
@@ -96,12 +123,20 @@ class NotaFinalForm(forms.ModelForm):
             raise ValidationError("Já existe uma nota cadastrada para este estudante nesta disciplina.")
 
         return cleaned_data
-    
+
+
+# Formulário para lançar notas em massa por turma
 class LancarNotasForm(forms.Form):
+    """
+    Formulário simplificado para lançar notas em massa para uma turma e disciplina.
+    """
     turma = forms.ModelChoiceField(queryset=Turma.objects.all(), label="Turma")
     disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.none(), label="Disciplina")
 
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa o formulário e ajusta o queryset de disciplinas baseado na turma.
+        """
         super().__init__(*args, **kwargs)
         if 'turma' in self.data:
             try:

@@ -5,23 +5,32 @@ from django.contrib import messages
 from django import forms
 from django.utils.html import format_html
 from django.contrib.admin.views.decorators import staff_member_required
-from .models import Turma, Estudante, Disciplina, NotaFinal, DisciplinaTurma
+from .models import Turma, Estudante, Disciplina, NotaFinal
 from .views import upload_csv
-from .forms import DisciplinaMultipleForm, LancarNotasForm, NotaFinalForm
+from .forms import DisciplinaMultipleForm, NotaFinalForm
 
 # Formulário para selecionar a disciplina e lançar notas para os estudantes associados
 class LancaNotaPorDisciplinaForm(forms.Form):
+    """
+    Formulário para permitir a seleção de uma disciplina e lançar notas associadas a ela.
+    """
     disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.all(), required=True, label="Disciplina")
 
 # Inline para exibir e lançar notas dos estudantes em uma disciplina específica
 class NotaFinalInline(admin.TabularInline):
+    """
+    Inline para exibir e editar notas diretamente na interface do admin.
+    """
     model = NotaFinal
     extra = 0
     fields = ('estudante', 'nota', 'status')
     readonly_fields = ('estudante',)
 
-# Configuração de EstudanteAdmin para exibir notas como inline
+# Configuração do admin para o modelo Estudante
 class EstudanteAdmin(admin.ModelAdmin):
+    """
+    Configurações do admin para o modelo Estudante.
+    """
     list_display = ('nome', 'turma')
     search_fields = ('nome',)
     ordering = ('nome',)
@@ -30,6 +39,9 @@ class EstudanteAdmin(admin.ModelAdmin):
     change_list_template = "admin/sistema_notas/estudante_change_list.html"
 
     def get_urls(self):
+        """
+        Adiciona uma URL customizada para upload de CSV.
+        """
         urls = super().get_urls()
         custom_urls = [
             path('upload-csv/', self.upload_csv_view, name='upload-csv'),
@@ -38,24 +50,41 @@ class EstudanteAdmin(admin.ModelAdmin):
 
     @staff_member_required
     def upload_csv_view(self, request):
+        """
+        Permite o upload de arquivos CSV diretamente pelo admin.
+        """
         return upload_csv(request)
 
-# Configuração de TurmaAdmin com inline de estudantes
+# Inline para exibir estudantes em uma turma
 class EstudanteInline(admin.TabularInline):
+    """
+    Inline para gerenciar estudantes diretamente dentro de uma turma.
+    """
     model = Estudante
     extra = 0
 
+# Configuração do admin para o modelo Turma
 class TurmaAdmin(admin.ModelAdmin):
+    """
+    Configurações do admin para o modelo Turma.
+    """
     list_display = ('nome',)
     ordering = ('nome',)
     inlines = [EstudanteInline]
 
-# Configuração de DisciplinaAdmin com criação de múltiplas disciplinas
+# Configuração do admin para o modelo Disciplina
 class DisciplinaAdmin(admin.ModelAdmin):
+    """
+    Configurações do admin para o modelo Disciplina.
+    Permite a criação de múltiplas disciplinas associadas a turmas.
+    """
     form = DisciplinaMultipleForm
     list_display = ('nome', 'turma')
 
     def add_view(self, request, form_url='', extra_context=None):
+        """
+        Personaliza a exibição e processamento do formulário de criação.
+        """
         if request.method == 'POST':
             form = self.get_form(request)(request.POST)
             if form.is_valid():
@@ -72,8 +101,12 @@ class DisciplinaAdmin(admin.ModelAdmin):
         
         return super().add_view(request, form_url, extra_context)
 
-# Configuração do admin para NotaFinal com botão para lançar notas por disciplina
+# Configuração do admin para o modelo NotaFinal
 class NotaFinalAdmin(admin.ModelAdmin):
+    """
+    Configurações do admin para o modelo NotaFinal.
+    Inclui filtros, edição em linha e ações customizadas.
+    """
     form = NotaFinalForm
     list_display = ('estudante', 'disciplina', 'nota', 'status')
     list_filter = ('disciplina__turma', 'disciplina')
@@ -81,6 +114,9 @@ class NotaFinalAdmin(admin.ModelAdmin):
     readonly_fields = ('status',)
 
     def get_urls(self):
+        """
+        Adiciona URLs customizadas, como a funcionalidade de lançar notas por turma.
+        """
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -92,6 +128,9 @@ class NotaFinalAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def lancar_notas_turma_view(self, request):
+        """
+        View customizada para lançar notas de forma mais interativa.
+        """
         turmas = Turma.objects.all()
         disciplinas = []
         estudantes_com_dados = []
@@ -139,16 +178,20 @@ class NotaFinalAdmin(admin.ModelAdmin):
             'estudantes_com_dados': estudantes_com_dados,
             'turma_id': turma_id,
             'disciplina_id': disciplina_id,
-    })
+        })
+
     def changelist_view(self, request, extra_context=None):
         """
-        Adiciona o botão de Lançar Notas por Turma na página principal.
+        Adiciona o botão de Lançar Notas por Turma na página principal do admin.
         """
         extra_context = extra_context or {}
         extra_context['lancar_notas_turma_url'] = reverse('admin:lancar_notas_turma')
         return super().changelist_view(request, extra_context=extra_context)
+
+# Registro dos modelos no admin
 admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)
 admin.site.register(Disciplina, DisciplinaAdmin)
 admin.site.register(NotaFinal, NotaFinalAdmin)
-admin.site.register(DisciplinaTurma)
+
+ 
