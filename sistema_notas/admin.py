@@ -193,5 +193,7 @@ admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)
 admin.site.register(Disciplina, DisciplinaAdmin)
 admin.site.register(NotaFinal, NotaFinalAdmin)
-
+admin.site.site_header = "EduClass - CETEP/LNAB"
+admin.site.site_title = "Administração do Sistema"
+admin.site.index_title = "Painel de Administração"
  
