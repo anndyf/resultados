@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import DisciplinaAutocomplete, EstudanteAutocomplete,lancar_notas_por_turma
+from .views import DisciplinaAutocomplete, EstudanteAutocomplete,lancar_notas_por_turma, redirect_professores
 
 urlpatterns = [
     path('turma/<int:turma_id>/status/', views.listar_status_turma, name='listar_status_turma'),
@@ -12,5 +12,6 @@ urlpatterns = [
     path('admin/sistema_notas/notafinal/lancar-notas-turma/', lancar_notas_por_turma, name='lancar_notas_turma'),
     path('relatorio-status-turma/<int:turma_id>/', views.relatorio_status_turma, name='relatorio_status_turma'),
     path('relatorio-status-turma/<int:turma_id>/pdf/', views.gerar_pdf_relatorio_turma, name='gerar_pdf_relatorio_turma'),
+    path('redirecionar-professores/', redirect_professores, name='redirect_professores'),
 
 ]

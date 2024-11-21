@@ -141,7 +141,19 @@ from django.db import transaction
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Turma, Disciplina, Estudante, NotaFinal
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import user_passes_test
+@login_required
+def redirect_professores(request):
+    # Verifica se o usuário pertence ao grupo "professores"
+    if request.user.groups.filter(name='Professores').exists():
+        return redirect('/admin/sistema_notas/notafinal/lancar-notas-turma/')
+    return redirect('/admin/')  # Redireciona usuários normais para o admin padrão
 
+def grupo_professores(user):
+    return user.groups.filter(name='Professores').exists()
+
+@user_passes_test(grupo_professores)
 def lancar_notas_por_turma(request):
     """
     Permite lançar notas para uma turma e disciplina específicas.
