@@ -11,5 +11,6 @@ urlpatterns = [
     path('estudante-autocomplete/', EstudanteAutocomplete.as_view(), name='estudante-autocomplete'),
     path('admin/sistema_notas/notafinal/lancar-notas-turma/', lancar_notas_por_turma, name='lancar_notas_turma'),
     path('relatorio-status-turma/<int:turma_id>/', views.relatorio_status_turma, name='relatorio_status_turma'),
+    path('relatorio-status-turma/<int:turma_id>/pdf/', views.gerar_pdf_relatorio_turma, name='gerar_pdf_relatorio_turma'),
 
 ]

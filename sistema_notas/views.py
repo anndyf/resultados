@@ -5,7 +5,10 @@ from django.contrib import messages
 from dal import autocomplete
 from .models import Estudante, NotaFinal, Turma, Disciplina
 from .forms import UploadCSVForm
-
+from django.http import HttpResponse
+from django.template.loader import get_template
+from xhtml2pdf import pisa
+from django.shortcuts import get_object_or_404
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
     """
@@ -174,6 +177,31 @@ def lancar_notas_por_turma(request):
 def relatorio_status_turma(request, turma_id):
     turma = Turma.objects.get(id=turma_id)
     disciplinas = Disciplina.objects.filter(turma=turma)
+    estudantes = Estudante.objects.filter(turma=turma).prefetch_related('notas__disciplina')
+
+    tabela = []
+    for estudante in estudantes:
+        linha = {
+            'estudante': estudante.nome,
+            'status_disciplinas': []
+        }
+        for disciplina in disciplinas:
+            nota_final = estudante.notas.filter(disciplina=disciplina).first()
+            linha['status_disciplinas'].append({
+                'disciplina': disciplina.nome,
+                'status': nota_final.status if nota_final else 'Sem nota'
+            })
+        tabela.append(linha)
+
+    return render(request, 'sistema_notas/relatorio_status_turma.html', {
+        'turma': turma,
+        'disciplinas': disciplinas,
+        'tabela': tabela,
+    })
+
+def gerar_pdf_relatorio_turma(request, turma_id):
+    turma = get_object_or_404(Turma, id=turma_id)
+    disciplinas = Disciplina.objects.filter(turma=turma)
     estudantes = Estudante.objects.filter(turma=turma)
 
     # Montar a tabela de status
@@ -185,20 +213,24 @@ def relatorio_status_turma(request, turma_id):
         }
         for disciplina in disciplinas:
             nota_final = NotaFinal.objects.filter(estudante=estudante, disciplina=disciplina).first()
-            if nota_final:
-                linha['status_disciplinas'].append({
-                    'disciplina': disciplina.nome,
-                    'status': nota_final.status
-                })
-            else:
-                linha['status_disciplinas'].append({
-                    'disciplina': disciplina.nome,
-                    'status': 'Sem nota'
-                })
+            linha['status_disciplinas'].append({
+                'disciplina': disciplina.nome,
+                'status': nota_final.status if nota_final else 'Sem nota'
+            })
         tabela.append(linha)
 
-    return render(request, 'sistema_notas/relatorio_status_turma.html', {
-        'turma': turma,
-        'disciplinas': disciplinas,
-        'tabela': tabela,
-    })
+    # Renderizar o template HTML para PDF
+    template_path = 'sistema_notas/relatorio_status_turma_pdf.html'
+    context = {'turma': turma, 'disciplinas': disciplinas, 'tabela': tabela}
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="relatorio_turma_{turma.nome}.pdf"'
+    template = get_template(template_path)
+    html = template.render(context)
+
+    # Gerar o PDF
+    pisa_status = pisa.CreatePDF(html, dest=response)
+
+    # Retornar erro se o PDF não puder ser gerado
+    if pisa_status.err:
+        return HttpResponse('Erro ao gerar o PDF', status=500)
+    return response

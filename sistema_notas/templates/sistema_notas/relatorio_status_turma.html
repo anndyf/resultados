@@ -1,6 +1,6 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
-<h1 style="text-align: center;">Relatório de Status - Turma {{ turma.nome }}</h1>
+<h1 style="text-align: center;">Resultado Final - Turma {{ turma.nome }}</h1>
 
 <p style="text-align: center;">Este relatório apresenta o status dos estudantes em todas as disciplinas da turma <strong>{{ turma.nome }}</strong>.</p>
 
@@ -37,6 +37,17 @@
         {% endfor %}
     </tbody>
 </table>
-
+<a href="{% url 'gerar_pdf_relatorio_turma' turma.id %}" style="
+    display: inline-block;
+    padding: 10px 20px;
+    background: #007bff;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 14px;
+    margin-top: 20px;
+">
+    Exportar como PDF
+</a>
 <a href="{% url 'admin:index' %}" style="display: block; text-align: center; margin-top: 20px;">Voltar para o painel administrativo</a>
 {% endblock %}
