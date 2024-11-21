@@ -2,5 +2,23 @@
 
 {% block object-tools %}
     {{ block.super }}
-    <a class="button" href="{{ lancar_notas_turma_url }}">Lançar Notas por Turma</a>
+    <div style="margin-top: 10px;">
+        <a 
+            class="button" 
+            href="{{ lancar_notas_turma_url }}" 
+            style="
+                display: inline-block; 
+                padding: 8px 16px; 
+                font-size: 14px; 
+                color: white; 
+                background-color: #007bff; 
+                border: 1px solid #007bff; 
+                border-radius: 4px; 
+                text-decoration: none; 
+                cursor: pointer;
+            "
+        >
+            Lançar Notas por Turma
+        </a>
+    </div>
 {% endblock %}
