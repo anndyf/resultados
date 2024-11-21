@@ -17,8 +17,12 @@ class DisciplinaMultipleForm(forms.ModelForm):
     Formulário para criar várias disciplinas associadas a turmas.
     """
     nome = forms.CharField(
-        widget=forms.TextInput(attrs={'placeholder': 'Digite várias disciplinas separadas por vírgula'}),
-        help_text="Exemplo: Matemática, Física, Química"
+    widget=forms.TextInput(attrs={
+        'placeholder': 'Digite várias disciplinas separadas por vírgula',
+        'maxlength': 350,
+        'style': 'width: 600px;'  # Ajuste a largura aqui
+    }),
+    help_text="Exemplo: Matemática, Física, Química"
     )
     turmas = forms.ModelMultipleChoiceField(
         queryset=Turma.objects.all(),

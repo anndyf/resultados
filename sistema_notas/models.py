@@ -35,7 +35,7 @@ class Disciplina(models.Model):
     """
     Representa uma disciplina associada a uma turma específica.
     """
-    nome = models.CharField(max_length=100)  # Nome da disciplina
+    nome = models.CharField(max_length=300)  # Nome da disciplina
     turma = models.ForeignKey(
         Turma, 
         on_delete=models.CASCADE, 

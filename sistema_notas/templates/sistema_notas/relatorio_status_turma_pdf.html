@@ -5,7 +5,7 @@
     <style>
         @page {
             size: A4 landscape; /* Define a orientação como horizontal */
-            margin: 20mm;
+            margin: 10mm 10mm 10mm 10mm; 
         }
         body {
             font-family: Arial, sans-serif;
@@ -15,7 +15,12 @@
         h1 {
             text-align: center;
             font-size: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+        }
+        .legenda {
+            margin: 10px 0;
+            text-align: center;
+            font-size: 14px;
         }
         table {
             width: 100%;
@@ -31,6 +36,20 @@
             font-weight: bold;
             text-transform: uppercase;
         }
+        th.vertical {
+            width: 50px; /* Ajuste a largura */
+            height: 150px; /* Altura suficiente */
+            padding: 0;
+        }
+        th.vertical div {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 150px; /* Define a altura */
+            text-align: center;
+            writing-mode: vertical-rl; /* Texto na vertical */
+            transform: rotate(180deg); /* Rotaciona o texto */
+        }
         td.recuperacao {
             font-weight: bold; /* Apenas "Recuperação" em negrito */
         }
@@ -38,12 +57,16 @@
 </head>
 <body>
     <h1>Relatório de Status - {{ turma.nome }}</h1>
+    <div class="legenda">
+        <strong>Legenda:</strong> AP - Aprovado &nbsp;&nbsp;&nbsp; RC - Recuperação &nbsp;&nbsp;&nbsp; DS - Desistente
+    </div>
+
     <table>
         <thead>
             <tr>
                 <th>Estudante</th>
                 {% for disciplina in disciplinas %}
-                <th>{{ disciplina.nome }}</th>
+                <th class="vertical"><div>{{ disciplina.nome }}</div></th>
                 {% endfor %}
             </tr>
         </thead>
@@ -53,7 +76,15 @@
                 <td>{{ linha.estudante }}</td>
                 {% for status in linha.status_disciplinas %}
                 <td class="{% if status.status == 'Recuperação' %}recuperacao{% endif %}">
-                    {{ status.status }}
+                    {% if status.status == 'Aprovado' %}
+                        AP
+                    {% elif status.status == 'Recuperação' %}
+                        RC
+                    {% elif status.status == 'Desistente' %}
+                        DS
+                    {% else %}
+                        --
+                    {% endif %}
                 </td>
                 {% endfor %}
             </tr>
