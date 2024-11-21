@@ -129,22 +129,78 @@ class NotaFinalForm(forms.ModelForm):
         return cleaned_data
 
 
-# Formulário para lançar notas em massa por turma
 class LancarNotasForm(forms.Form):
     """
     Formulário simplificado para lançar notas em massa para uma turma e disciplina.
     """
-    turma = forms.ModelChoiceField(queryset=Turma.objects.all(), label="Turma")
-    disciplina = forms.ModelChoiceField(queryset=Disciplina.objects.none(), label="Disciplina")
+    turma = forms.ModelChoiceField(
+        queryset=Turma.objects.all(),
+        label="Turma",
+        required=True,
+        error_messages={
+            'required': 'Você deve selecionar uma turma.',
+            'invalid_choice': 'A turma selecionada é inválida.',
+        },
+    )
+    disciplina = forms.ModelChoiceField(
+        queryset=Disciplina.objects.none(),
+        label="Disciplina",
+        required=True,
+        error_messages={
+            'required': 'Você deve selecionar uma disciplina.',
+            'invalid_choice': 'A disciplina selecionada é inválida.',
+        },
+    )
+    notas = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=False
+    )  # Campo oculto para receber as notas em formato JSON
 
     def __init__(self, *args, **kwargs):
         """
         Inicializa o formulário e ajusta o queryset de disciplinas baseado na turma.
         """
         super().__init__(*args, **kwargs)
-        if 'turma' in self.data:
+
+        if 'turma' in self.data:  # Se 'turma' foi enviada via request
             try:
                 turma_id = int(self.data.get('turma'))
                 self.fields['disciplina'].queryset = Disciplina.objects.filter(turma_id=turma_id)
             except (ValueError, TypeError):
-                pass
+                self.fields['disciplina'].queryset = Disciplina.objects.none()
+
+    def clean(self):
+        """
+        Validação personalizada para garantir que a disciplina pertence à turma selecionada
+        e para validar as notas.
+        """
+        cleaned_data = super().clean()
+        turma = cleaned_data.get('turma')
+        disciplina = cleaned_data.get('disciplina')
+        notas_json = cleaned_data.get('notas')
+
+        # Validação da turma e disciplina
+        if turma and disciplina:
+            if disciplina.turma != turma:
+                raise forms.ValidationError("A disciplina selecionada não pertence à turma escolhida.")
+
+        # Validação das notas
+        import json
+        erros = []
+        try:
+            notas = json.loads(notas_json)  # Processa o JSON de notas
+        except (ValueError, TypeError):
+            raise forms.ValidationError("Erro ao processar as notas enviadas.")
+
+        for estudante_id, nota in notas.items():
+            try:
+                nota = float(nota)  # Converte a nota para float
+                if nota < -1 or nota > 10:
+                    erros.append(f"A nota {nota} para o estudante com ID {estudante_id} deve estar entre -1 e 10.")
+            except ValueError:
+                erros.append(f"A nota fornecida para o estudante com ID {estudante_id} é inválida.")
+
+        if erros:
+            raise forms.ValidationError(erros)  # Levanta todas as mensagens de erro de uma vez
+
+        return cleaned_data

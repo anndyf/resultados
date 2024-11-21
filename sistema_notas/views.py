@@ -1,14 +1,16 @@
+from django.forms import ValidationError
+from django.shortcuts import get_object_or_404
 import csv
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib import messages
 from dal import autocomplete
 from .models import Estudante, NotaFinal, Turma, Disciplina
-from .forms import UploadCSVForm
+from .forms import LancarNotasForm, UploadCSVForm
 from django.http import HttpResponse
 from django.template.loader import get_template
 from xhtml2pdf import pisa
-from django.shortcuts import get_object_or_404
+
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
     """
@@ -135,35 +137,67 @@ def upload_csv(request):
 
     return render(request, 'sistema_notas/upload_csv.html', {'form': form, 'preview': preview})
 # View para lançar notas por turma
+from django.db import transaction
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import Turma, Disciplina, Estudante, NotaFinal
+
 def lancar_notas_por_turma(request):
     """
     Permite lançar notas para uma turma e disciplina específicas.
     """
+    form = LancarNotasForm(request.POST or None)
     turmas = Turma.objects.all()
     disciplinas = []
     estudantes = []
+    errors = []  # Lista para armazenar mensagens de erro
 
     turma_id = request.GET.get('turma') or request.POST.get('turma')
     disciplina_id = request.GET.get('disciplina') or request.POST.get('disciplina')
 
+    # Filtrar disciplinas e estudantes com base na seleção
     if turma_id:
-        disciplinas = Disciplina.objects.filter(turma__id=turma_id).distinct()  # Evitar duplicação
+        disciplinas = Disciplina.objects.filter(turma__id=turma_id).distinct()
     if turma_id and disciplina_id:
         estudantes = Estudante.objects.filter(turma_id=turma_id).distinct()
-        for estudante in estudantes:
-            estudante.nota = NotaFinal.objects.filter(estudante=estudante, disciplina_id=disciplina_id).first()
+        notas = NotaFinal.objects.filter(disciplina_id=disciplina_id, estudante__in=estudantes)
+        notas_map = {nota.estudante_id: nota for nota in notas}
 
-    if request.method == 'POST':
+        # Adicionar notas aos estudantes
         for estudante in estudantes:
-            nota = request.POST.get(f"nota_{estudante.id}")
-            if nota:
-                NotaFinal.objects.update_or_create(
-                    estudante=estudante,
-                    disciplina_id=disciplina_id,
-                    defaults={'nota': float(nota)},
-                )
-        messages.success(request, "Notas salvas com sucesso!")
-        return redirect('admin:sistema_notas_notafinal_changelist')
+            estudante.nota = notas_map.get(estudante.id)
+
+    # Processar submissão do formulário
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():  # Garantir consistência dos dados
+                for estudante in estudantes:
+                    nota = request.POST.get(f"nota_{estudante.id}")
+                    if nota:  # Se uma nota foi enviada para este estudante
+                        try:
+                            nota_float = float(nota)
+                            # Verificar se a nota está no intervalo permitido
+                            if -1 <= nota_float <= 10:
+                                NotaFinal.objects.update_or_create(
+                                    estudante=estudante,
+                                    disciplina_id=disciplina_id,
+                                    defaults={'nota': nota_float},
+                                )
+                            else:
+                                errors.append(f"A nota {nota} para o estudante {estudante.nome} deve estar entre -1 e 10.")
+                        except ValueError:
+                            errors.append(f"A nota '{nota}' fornecida para o estudante {estudante.nome} é inválida.")
+                if errors:
+                    # Lança as mensagens de erro coletadas
+                    raise ValidationError(errors)
+                messages.success(request, "Notas válidas foram salvas com sucesso!")
+                return redirect('admin:sistema_notas_notafinal_changelist')
+        except ValidationError as ve:
+            # Captura as mensagens de erro do ValidationError
+            for error in ve.messages:
+                errors.append(error)
+        except Exception as e:
+            messages.error(request, f"Erro inesperado: {e}")
 
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
         'title': 'Lançar Notas por Turma',
@@ -172,7 +206,10 @@ def lancar_notas_por_turma(request):
         'estudantes': estudantes,
         'turma_id': turma_id,
         'disciplina_id': disciplina_id,
+        'form': form,
+        'errors': errors,  # Passar erros para o template
     })
+
 
 def relatorio_status_turma(request, turma_id):
     turma = Turma.objects.get(id=turma_id)

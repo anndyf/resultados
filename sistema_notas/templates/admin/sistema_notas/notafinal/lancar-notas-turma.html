@@ -1,4 +1,5 @@
 {% extends "admin/base_site.html" %}
+
 {% block content %}
 <div style="text-align: center; margin: 20px auto; max-width: 800px; font-family: Arial, sans-serif;">
     <h1>Lançar Notas por Turma</h1>
@@ -8,6 +9,17 @@
         Caso o estudante seja DESISTENTE, insira <strong>-1</strong>.
     </p>
 
+    <!-- Exibe mensagens de erro do formulário -->
+    {% if errors %}
+        <div style="text-align: left; color: red; margin-bottom: 20px;">
+            <strong>Erros encontrados:</strong>
+            <ul class="errorlist" style="list-style-type: disc; padding-left: 20px;">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
     <form method="get" id="filter-form" style="margin-bottom: 20px;">
         <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <label for="turma" style="font-weight: bold;">Turma:</label>
@@ -50,10 +62,14 @@
                     <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nome }}</td>
                     <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">
                         <input
-                            type="text"
+                            type="number"
                             name="nota_{{ estudante.id }}"
-                            value="{{ estudante.nota|default_if_none:'' }}"
+                            value="{% if estudante.nota is not None %}{{ estudante.nota }}{% else %}{% endif %}"
                             placeholder="Sem nota"
+                            min="-1"
+                            max="10"
+                            step="0.01"
+                            oninput="validateInput(this)"
                             style="width: 100px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; text-align: center;"
                         >
                     </td>
@@ -77,6 +93,7 @@
 </div>
 
 <script>
+    // Adiciona comportamento para filtros dinâmicos
     document.addEventListener('DOMContentLoaded', function () {
         const turmaSelect = document.getElementById('turma');
         const disciplinaSelect = document.getElementById('disciplina');
@@ -90,5 +107,55 @@
             form.submit();
         });
     });
+
+    // Ajusta placeholders nos campos de nota
+    document.addEventListener('DOMContentLoaded', function () {
+        const notaFields = document.querySelectorAll('input[name^="nota_"]');
+
+        notaFields.forEach(function (field) {
+            field.addEventListener('focus', function () {
+                this.placeholder = '';  // Remove o placeholder no foco
+            });
+
+            field.addEventListener('blur', function () {
+                if (this.value === '') {
+                    this.placeholder = 'Sem nota';  // Restaura o placeholder ao sair
+                }
+            });
+        });
+    });
 </script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const notaInputs = document.querySelectorAll('input[name^="nota_"]');
+
+        notaInputs.forEach(function (input) {
+            input.addEventListener('input', function () {
+                const value = parseFloat(this.value);
+                if (isNaN(value) || value < -1 || value > 10) {
+                    this.style.border = '1px solid red';
+                    this.setCustomValidity('A nota deve estar entre -1 e 10.');
+                } else {
+                    this.style.border = '';
+                    this.setCustomValidity('');
+                }
+            });
+        });
+    });
+</script>
+<script>
+    function validateInput(input) {
+        const value = parseFloat(input.value);
+
+        // Se o valor for inválido ou fora do intervalo, limpa o campo
+        if (isNaN(value) || value < -1 || value > 10) {
+            input.style.border = "1px solid red"; // Destaca o campo com borda vermelha
+            input.setCustomValidity("A nota deve estar entre -1 e 10.");
+        } else {
+            input.style.border = ""; // Remove o destaque se o valor for válido
+            input.setCustomValidity(""); // Remove o erro de validação
+        }
+    }
+</script>
+
 {% endblock %}

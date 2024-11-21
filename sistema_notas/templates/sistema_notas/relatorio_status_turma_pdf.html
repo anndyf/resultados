@@ -5,7 +5,7 @@
     <style>
         @page {
             size: A4 landscape; /* Define a orientação como horizontal */
-            margin: 10mm 10mm 10mm 10mm; 
+            margin: 10mm;
         }
         body {
             font-family: Arial, sans-serif;
@@ -28,52 +28,57 @@
             margin: 20px 0;
         }
         th, td {
-            padding: 10px;
+            padding: 5px; /* Reduzido para diminuir a altura das linhas */
             border: 1px solid #000; /* Preto, sem cores */
-            text-align: center;
         }
         th {
             font-weight: bold;
             text-transform: uppercase;
+            text-align: center;
         }
         th.vertical {
-            width: 50px; /* Ajuste a largura */
-            height: 150px; /* Altura suficiente */
-            padding: 0;
+            width: 50px; /* Largura fixa para disciplinas */
+            height: 150px; /* Altura suficiente para acomodar o texto rotacionado */
+            text-align: center; /* Centraliza o texto */
+            vertical-align: center; /* Alinha na parte inferior da célula */
+            padding: 5px;
         }
         th.vertical div {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 150px; /* Define a altura */
-            text-align: center;
-            writing-mode: vertical-rl; /* Texto na vertical */
-            transform: rotate(180deg); /* Rotaciona o texto */
+            writing-mode: vertical-rl; /* Alinha o texto verticalmente (de baixo para cima) */
+            transform: rotate(-90deg); /* Garante leitura natural */
+            white-space: pre-wrap; /* Evita quebra de linha */
+            display: inline-block;
         }
         td.recuperacao {
             font-weight: bold; /* Apenas "Recuperação" em negrito */
         }
+        td.estudante-coluna {
+            text-align: left; /* Alinha os nomes dos estudantes à esquerda */
+            
+        }
     </style>
 </head>
 <body>
-    <h1>Relatório de Status - {{ turma.nome }}</h1>
+    <h1>RESULTADO FINAL - {{ turma.nome }}</h1>
     <div class="legenda">
-        <strong>Legenda:</strong> AP - Aprovado &nbsp;&nbsp;&nbsp; RC - Recuperação &nbsp;&nbsp;&nbsp; DS - Desistente
+        <strong>Legenda:</strong> <strong>AP</strong> - Aprovado &nbsp;&nbsp;&nbsp; <strong>RC</strong> - Recuperação &nbsp;&nbsp;&nbsp;<strong> DS</strong> - Desistente
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Estudante</th>
+                <th class="estudante-coluna">Estudante</th>
                 {% for disciplina in disciplinas %}
-                <th class="vertical"><div>{{ disciplina.nome }}</div></th>
+                <th class="vertical">
+                    <div>{{ disciplina.nome }}</div>
+                </th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% for linha in tabela %}
             <tr>
-                <td>{{ linha.estudante }}</td>
+                <td class="estudante-coluna">{{ linha.estudante }}</td>
                 {% for status in linha.status_disciplinas %}
                 <td class="{% if status.status == 'Recuperação' %}recuperacao{% endif %}">
                     {% if status.status == 'Aprovado' %}

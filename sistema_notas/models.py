@@ -68,13 +68,13 @@ class NotaFinal(models.Model):
         'Estudante', 
         on_delete=models.CASCADE, 
         related_name='notas'
-    )  # Relaciona a nota a um estudante
+    )
     disciplina = models.ForeignKey(
         'Disciplina', 
         on_delete=models.CASCADE, 
         related_name='notas'
-    )  # Relaciona a nota a uma disciplina
-    nota = models.FloatField()  # Valor da nota
+    )
+    nota = models.FloatField()
     STATUS_CHOICES = [
         ('Aprovado', 'Aprovado'),
         ('Recuperação', 'Recuperação'),
@@ -84,33 +84,35 @@ class NotaFinal(models.Model):
         max_length=20, 
         choices=STATUS_CHOICES, 
         blank=True
-    )  # Status da nota com base no desempenho do estudante
+    )
 
     class Meta:
-        unique_together = ('estudante', 'disciplina')  # Garante que cada estudante tenha uma nota única por disciplina
+        unique_together = ('estudante', 'disciplina')
         verbose_name = 'Nota Final'
         verbose_name_plural = 'Notas Finais'
 
+    def clean(self):
+        """
+        Valida a nota antes de salvar.
+        """
+        super().clean()
+        if self.nota < -1 or self.nota > 10:
+            raise ValidationError("A nota deve estar entre -1 e 10.")
+
     def save(self, *args, **kwargs):
         """
-        Sobrescreve o método save para calcular automaticamente o status com base na nota.
+        Sobrescreve o método save para validar e calcular automaticamente o status.
         """
-        try:
-            # Converte a nota para float antes de verificar o status
-            self.nota = float(self.nota)
-
-            # Define o status automaticamente com base na nota
-            if self.nota == -1:
-                self.status = 'Desistente'
-            elif self.nota < 5:
-                self.status = 'Recuperação'
-            else:
-                self.status = 'Aprovado'
-        except ValueError:
-            raise ValueError("A nota deve ser um número válido.")
+        self.clean()
         
+        if self.nota == -1:
+            self.status = 'Desistente'
+        elif self.nota < 5:
+            self.status = 'Recuperação'
+        else:
+            self.status = 'Aprovado'
+
         super().save(*args, **kwargs)
 
     def __str__(self):
-        # Exibe uma representação legível do objeto
         return f"{self.estudante.nome} - {self.disciplina.nome}: {self.nota} ({self.status})"

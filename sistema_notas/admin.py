@@ -186,6 +186,10 @@ class NotaFinalAdmin(admin.ModelAdmin):
             'turma_id': turma_id,
             'disciplina_id': disciplina_id,
         })
+    def save_model(self, request, obj, form, change):
+        if obj.nota < -1 or obj.nota > 10:
+            raise forms.ValidationError('A nota deve estar entre -1 e 10.')
+        super().save_model(request, obj, form, change)
 
     def changelist_view(self, request, extra_context=None):
         """
