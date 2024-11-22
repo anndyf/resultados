@@ -176,7 +176,8 @@ class NotaFinalAdmin(admin.ModelAdmin):
                         continue
 
             messages.success(request, "Notas salvas com sucesso!")
-            return redirect('admin:sistema_notas_notafinal_changelist')
+            # Redireciona para a mesma página com os filtros aplicados
+            return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
 
         return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
             'title': 'Lançar Notas por Turma',
@@ -185,7 +186,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
             'estudantes_com_dados': estudantes_com_dados,
             'turma_id': turma_id,
             'disciplina_id': disciplina_id,
-        })
+    })
     def save_model(self, request, obj, form, change):
         if obj.nota < -1 or obj.nota > 10:
             raise forms.ValidationError('A nota deve estar entre -1 e 10.')

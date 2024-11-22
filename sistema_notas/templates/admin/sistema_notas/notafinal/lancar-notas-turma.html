@@ -77,7 +77,13 @@
                         style="width: 100px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; text-align: center;"
                     >
                     </td>
-                    <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.status }}</td>
+                    <td style="padding: 10px; border: 1px solid #ccc;">
+                        {% if estudante.nota %}
+                            {{ estudante.nota.status_calculado }}
+                        {% else %}
+                            Sem status
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

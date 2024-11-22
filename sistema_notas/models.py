@@ -91,20 +91,11 @@ class NotaFinal(models.Model):
         verbose_name = 'Nota Final'
         verbose_name_plural = 'Notas Finais'
 
-    def clean(self):
-        """
-        Valida a nota antes de salvar.
-        """
-        super().clean()
-        if self.nota < -1 or self.nota > 10:
-            raise ValidationError("A nota deve estar entre -1 e 10.")
-
     def save(self, *args, **kwargs):
         """
-        Sobrescreve o método save para validar e calcular automaticamente o status.
+        Sobrescreve o método save para calcular automaticamente o status com base na nota.
         """
-        self.clean()
-        
+        # Recalcula o status com base no valor da nota
         if self.nota == -1:
             self.status = 'Desistente'
         elif self.nota < 5:
@@ -112,6 +103,7 @@ class NotaFinal(models.Model):
         else:
             self.status = 'Aprovado'
 
+        # Chama o método save da superclasse para persistir os dados
         super().save(*args, **kwargs)
 
     def __str__(self):
