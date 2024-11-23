@@ -11,15 +11,12 @@ def registrar_historico(sender, instance, **kwargs):
         try:
             nota_original = NotaFinal.objects.get(pk=instance.pk)
             if nota_original.nota != instance.nota:  # Verifica se a nota foi alterada
-                # Garante que modified_by foi atribuído corretamente
-                if not instance.modified_by:
-                    raise ValueError("O campo 'modified_by' não foi definido antes do salvamento.")
-
                 NotaFinalAudit.objects.create(
                     nota_final=instance,
-                    modified_by=instance.modified_by,  # Captura o usuário que fez a alteração
+                    modified_by=instance.modified_by,  # Certifica-se de que `modified_by` seja atribuído antes de salvar
                     nota_anterior=nota_original.nota,
                     nota_atual=instance.nota,
                 )
         except NotaFinal.DoesNotExist:
-            pass  # Se não houver nota original, não faz nada
+            # Caso a nota original não exista, não faz nada
+            pass
