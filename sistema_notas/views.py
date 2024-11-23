@@ -211,6 +211,7 @@ def lancar_notas_por_turma(request):
                         try:
                             nota_float = float(nota)
                             if -1 <= nota_float <= 10:
+                                # Atualiza ou cria a NotaFinal e adiciona `modified_by`
                                 nota_obj, created = NotaFinal.objects.update_or_create(
                                     estudante_id=estudante_data['id'],
                                     disciplina_id=disciplina_id,
@@ -249,6 +250,7 @@ def lancar_notas_por_turma(request):
         'form': form,
         'errors': errors,
     })
+
 
 
 def gerar_pdf_relatorio_turma(request, turma_id):

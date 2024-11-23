@@ -62,6 +62,9 @@ class DisciplinaTurma(models.Model):
 
 # Modelo para representar uma Nota Final
 class NotaFinal(models.Model):
+    modified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    modified_at = models.DateTimeField(auto_now=True)
+
     estudante = models.ForeignKey(
         'Estudante', 
         on_delete=models.CASCADE, 
@@ -108,3 +111,13 @@ class NotaFinal(models.Model):
 
     def __str__(self):
         return f"{self.estudante.nome} - {self.disciplina.nome}: {self.nota} ({self.status})"
+
+class NotaFinalAudit(models.Model):
+    nota_final = models.ForeignKey(NotaFinal, on_delete=models.CASCADE)
+    modified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    modified_at = models.DateTimeField(auto_now_add=True)
+    nota_anterior = models.FloatField()
+    nota_atual = models.FloatField()
+
+    def __str__(self):
+        return f"Audit - NotaFinal ID {self.nota_final.id} - {self.modified_at}"

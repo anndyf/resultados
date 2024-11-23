@@ -8,6 +8,15 @@ from django.contrib.admin.views.decorators import staff_member_required
 from .models import Turma, Estudante, Disciplina, NotaFinal
 from .views import upload_csv
 from .forms import DisciplinaMultipleForm, NotaFinalForm
+from .models import NotaFinalAudit
+from django.contrib.admin.sites import AlreadyRegistered
+
+
+class NotaFinalAuditAdmin(admin.ModelAdmin):
+    list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'modified_at')
+    list_filter = ('modified_by', 'modified_at')
+
+admin.site.register(NotaFinalAudit, NotaFinalAuditAdmin)
 
 # Formulário para selecionar a disciplina e lançar notas para os estudantes associados
 class LancaNotaPorDisciplinaForm(forms.Form):
@@ -203,6 +212,10 @@ admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)
 admin.site.register(Disciplina, DisciplinaAdmin)
 admin.site.register(NotaFinal, NotaFinalAdmin)
+try:
+    admin.site.register(NotaFinalAudit, NotaFinalAuditAdmin)
+except AlreadyRegistered:
+    pass
 admin.site.site_header = "EduClass - CETEP/LNAB"
 admin.site.site_title = "Administração do Sistema"
 admin.site.index_title = "Painel de Administração"
