@@ -110,15 +110,10 @@ class DisciplinaAdmin(admin.ModelAdmin):
 
 # Configuração do admin para o modelo NotaFinal
 class NotaFinalAdmin(admin.ModelAdmin):
-    """
-    Configurações do admin para o modelo NotaFinal.
-    Inclui filtros, edição em linha e ações customizadas.
-    """
-    form = NotaFinalForm
-    list_display = ('estudante', 'disciplina', 'nota', 'status')
+    list_display = ('estudante', 'disciplina', 'nota', 'status', 'modified_by', 'modified_at')
     list_filter = ('disciplina__turma', 'disciplina')
     list_editable = ('nota',)
-    readonly_fields = ('status',)
+    readonly_fields = ('status', 'modified_by', 'modified_at')
 
     def get_urls(self):
         """
@@ -192,6 +187,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if obj.nota < -1 or obj.nota > 10:
             raise forms.ValidationError('A nota deve estar entre -1 e 10.')
+        obj.modified_by = request.user
         super().save_model(request, obj, form, change)
 
     def changelist_view(self, request, extra_context=None):

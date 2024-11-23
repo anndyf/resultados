@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
 from django.db import models
-from django.core.exceptions import ValidationError
+from django.utils.timezone import now
 
 # Obtém o modelo de usuário do Django
 User = get_user_model()
@@ -62,13 +63,13 @@ class DisciplinaTurma(models.Model):
 # Modelo para representar uma Nota Final
 class NotaFinal(models.Model):
     estudante = models.ForeignKey(
-        'Estudante',
-        on_delete=models.CASCADE,
+        'Estudante', 
+        on_delete=models.CASCADE, 
         related_name='notas'
     )
     disciplina = models.ForeignKey(
-        'Disciplina',
-        on_delete=models.CASCADE,
+        'Disciplina', 
+        on_delete=models.CASCADE, 
         related_name='notas'
     )
     nota = models.FloatField()
@@ -78,25 +79,31 @@ class NotaFinal(models.Model):
         ('Desistente', 'Desistente'),
     ]
     status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
+        max_length=20, 
+        choices=STATUS_CHOICES, 
         blank=True
     )
+    modified_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='notas_modificadas'
+    )
+    modified_at = models.DateTimeField(auto_now=True)  # Atualizado automaticamente quando salvo
 
     class Meta:
         unique_together = ('estudante', 'disciplina')
+        verbose_name = 'Nota Final'
+        verbose_name_plural = 'Notas Finais'
 
     def save(self, *args, **kwargs):
-        """
-        Sobrescreve o método save para calcular automaticamente o status com base na nota.
-        """
         if self.nota == -1:
             self.status = 'Desistente'
         elif self.nota < 5:
             self.status = 'Recuperação'
         else:
             self.status = 'Aprovado'
-
         super().save(*args, **kwargs)
 
     def __str__(self):

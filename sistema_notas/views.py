@@ -1,4 +1,3 @@
-from django.forms import ValidationError
 from django.shortcuts import get_object_or_404
 import csv
 from django.shortcuts import render, redirect
@@ -16,8 +15,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from .models import Turma, Disciplina, Estudante, NotaFinal
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.models import User
 from django.db.models import Case, When, Value, CharField
-
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
     """
@@ -160,6 +159,8 @@ def redirecionar_ou_boas_vindas(request):
     return redirect('/admin/')
 
 @user_passes_test(grupo_professores)
+@login_required
+@transaction.atomic
 def lancar_notas_por_turma(request):
     form = LancarNotasForm(request.POST or None)
     turmas = Turma.objects.all()
@@ -176,7 +177,7 @@ def lancar_notas_por_turma(request):
     if turma_id and disciplina_id:
         estudantes = Estudante.objects.filter(turma_id=turma_id).distinct()
 
-        # Sempre puxe as notas atualizadas após salvar
+        # Puxa as notas atualizadas após salvar
         notas = NotaFinal.objects.filter(disciplina_id=disciplina_id, estudante__in=estudantes)
         notas_map = {nota.estudante_id: nota for nota in notas}
 
@@ -187,7 +188,9 @@ def lancar_notas_por_turma(request):
                     'id': estudante.id,
                     'nome': estudante.nome,
                     'nota': nota_obj.nota,
-                    'status': nota_obj.status,  # Puxar diretamente do banco
+                    'status': nota_obj.status,
+                    'modified_by': nota_obj.modified_by.username if nota_obj.modified_by else 'Não definido',
+                    'modified_at': nota_obj.modified_at,
                 })
             else:
                 estudantes_com_dados.append({
@@ -195,6 +198,8 @@ def lancar_notas_por_turma(request):
                     'nome': estudante.nome,
                     'nota': None,
                     'status': "Sem status",
+                    'modified_by': "Não definido",
+                    'modified_at': None,
                 })
 
     if request.method == 'POST':
@@ -211,13 +216,14 @@ def lancar_notas_por_turma(request):
                                     disciplina_id=disciplina_id,
                                     defaults={'nota': nota_float},
                                 )
-                                # Atualiza o status baseado na nova nota
+                                # Atualiza os campos de auditoria e status
                                 if nota_float == -1:
                                     nota_obj.status = "Desistente"
                                 elif nota_float < 5:
                                     nota_obj.status = "Recuperação"
                                 else:
                                     nota_obj.status = "Aprovado"
+                                nota_obj.modified_by = request.user  # Usuário que alterou
                                 nota_obj.save()
                             else:
                                 errors.append(f"A nota {nota} para o estudante {estudante_data['nome']} deve estar entre -1 e 10.")
@@ -230,7 +236,7 @@ def lancar_notas_por_turma(request):
         except Exception as e:
             messages.error(request, f"Erro inesperado: {e}")
 
-        # Recarrega a página com os dados atualizados
+        # Reload page with updated data
         return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
 
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {

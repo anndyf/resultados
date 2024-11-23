@@ -2,12 +2,12 @@
 
 {% block content %}
 <div style="text-align: center; margin: 20px auto; max-width: 800px; font-family: Arial, sans-serif;">
-    <h1>Lançar Notas por Turma</h1>
+    <h1>CADASTRAR RESULTADO FINAL</h1>
 
-    <p style="margin: 10px 0; font-size: 14px; color: #555;">
-        Digite a média final para atualizar o status do estudante. 
-        Caso o estudante seja DESISTENTE, insira <strong>-1</strong>.
+    <p style="margin: 10px 0; font-size: 17px; color: #555;">
+        Digite a <b style="color: #0000CD; ">MÉDIA FINAL</b> para atualizar o status do estudante. 
     </p>
+    <p style="margin: 10px 0; font-size: 17px; color: black;">Caso o estudante seja <b style="color: red; ">DESISTENTE</b>, insira <strong>-1</strong>.</p>
 
     <!-- Exibe mensagens de erro do formulário -->
     {% if errors %}
@@ -55,6 +55,8 @@
                     <th style="padding: 10px; border: 1px solid #ccc;">Nota Salva</th>
                     <th style="padding: 10px; border: 1px solid #ccc;">Editar Nota</th>
                     <th style="padding: 10px; border: 1px solid #ccc;">Status</th>
+                    <th style="padding: 10px; border: 1px solid #ccc;">Alterado Por</th>
+                    <th style="padding: 10px; border: 1px solid #ccc;">Data de Modificação</th>
                 </tr>
             </thead>
             <tbody>
@@ -62,7 +64,7 @@
                 <tr>
                     <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">{{ forloop.counter }}</td>
                     <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nome }}</td>
-                    <td style="padding: 15px; border: 1px solid #ccc; text-align: center;">{{ estudante.nota|default:"Sem nota" }}</td>
+                    <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nota|default:"Sem nota" }}</td>
                     <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">
                         <input
                             type="number"
@@ -76,9 +78,12 @@
                         >
                     </td>
                     <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.status }}</td>
+                    <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nota.modified_by|default:"Sem informações" }}</td>
+                    <td style="padding: 10px; border: 1px solid #ccc;">{{ estudante.nota.modified_at|date:"d/m/Y H:i" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
+            
         </table>
         <button type="submit" name="salvar" style="
             margin-top: 20px; 
