@@ -61,17 +61,14 @@ class DisciplinaTurma(models.Model):
 
 # Modelo para representar uma Nota Final
 class NotaFinal(models.Model):
-    """
-    Representa a nota final de um estudante em uma disciplina.
-    """
     estudante = models.ForeignKey(
-        'Estudante', 
-        on_delete=models.CASCADE, 
+        'Estudante',
+        on_delete=models.CASCADE,
         related_name='notas'
     )
     disciplina = models.ForeignKey(
-        'Disciplina', 
-        on_delete=models.CASCADE, 
+        'Disciplina',
+        on_delete=models.CASCADE,
         related_name='notas'
     )
     nota = models.FloatField()
@@ -81,21 +78,18 @@ class NotaFinal(models.Model):
         ('Desistente', 'Desistente'),
     ]
     status = models.CharField(
-        max_length=20, 
-        choices=STATUS_CHOICES, 
+        max_length=20,
+        choices=STATUS_CHOICES,
         blank=True
     )
 
     class Meta:
         unique_together = ('estudante', 'disciplina')
-        verbose_name = 'Nota Final'
-        verbose_name_plural = 'Notas Finais'
 
     def save(self, *args, **kwargs):
         """
         Sobrescreve o método save para calcular automaticamente o status com base na nota.
         """
-        # Recalcula o status com base no valor da nota
         if self.nota == -1:
             self.status = 'Desistente'
         elif self.nota < 5:
@@ -103,7 +97,6 @@ class NotaFinal(models.Model):
         else:
             self.status = 'Aprovado'
 
-        # Chama o método save da superclasse para persistir os dados
         super().save(*args, **kwargs)
 
     def __str__(self):

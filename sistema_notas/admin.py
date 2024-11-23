@@ -166,11 +166,12 @@ class NotaFinalAdmin(admin.ModelAdmin):
                     try:
                         # Substituir vírgula por ponto antes de converter
                         nota_float = float(nota.replace(',', '.'))
-                        NotaFinal.objects.update_or_create(
+                        nota_final, created = NotaFinal.objects.update_or_create(
                             estudante=estudante,
                             disciplina_id=disciplina_id,
                             defaults={'nota': nota_float},
                         )
+                        nota_final.save()  # Recalcula o status ao salvar
                     except ValueError:
                         messages.error(request, f"Nota inválida para o estudante {estudante.nome}: {nota}")
                         continue
@@ -187,6 +188,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
             'turma_id': turma_id,
             'disciplina_id': disciplina_id,
     })
+
     def save_model(self, request, obj, form, change):
         if obj.nota < -1 or obj.nota > 10:
             raise forms.ValidationError('A nota deve estar entre -1 e 10.')

@@ -161,60 +161,68 @@ def redirecionar_ou_boas_vindas(request):
 
 @user_passes_test(grupo_professores)
 def lancar_notas_por_turma(request):
-    """
-    Permite lançar notas para uma turma e disciplina específicas.
-    """
     form = LancarNotasForm(request.POST or None)
     turmas = Turma.objects.all()
     disciplinas = []
-    estudantes = []
-    errors = []  # Lista para armazenar mensagens de erro
+    estudantes_com_dados = []
+    errors = []
 
     turma_id = request.GET.get('turma') or request.POST.get('turma')
     disciplina_id = request.GET.get('disciplina') or request.POST.get('disciplina')
 
-    # Filtrar disciplinas e estudantes com base na seleção
     if turma_id:
         disciplinas = Disciplina.objects.filter(turma__id=turma_id).distinct()
+
     if turma_id and disciplina_id:
         estudantes = Estudante.objects.filter(turma_id=turma_id).distinct()
-        notas = NotaFinal.objects.filter(disciplina_id=disciplina_id, estudante__in=estudantes).annotate(
-            status_calculado=Case(
-                When(nota=-1, then=Value('Desistente')),
-                When(nota__lt=5, then=Value('Recuperação')),
-                When(nota__gte=5, then=Value('Aprovado')),
-                default=Value('Sem status'),
-                output_field=CharField(),
-            )
-        )
+
+        # Sempre puxe as notas atualizadas após salvar
+        notas = NotaFinal.objects.filter(disciplina_id=disciplina_id, estudante__in=estudantes)
         notas_map = {nota.estudante_id: nota for nota in notas}
 
-        # Adicionar notas aos estudantes
         for estudante in estudantes:
-            estudante.nota = notas_map.get(estudante.id, None)
-        
-        for estudante in estudantes:
-            print(f"Estudante: {estudante.nome}, Nota: {estudante.nota}, Status: {getattr(estudante.nota, 'status_calculado', 'Sem status')}")
+            nota_obj = notas_map.get(estudante.id)
+            if nota_obj:
+                estudantes_com_dados.append({
+                    'id': estudante.id,
+                    'nome': estudante.nome,
+                    'nota': nota_obj.nota,
+                    'status': nota_obj.status,  # Puxar diretamente do banco
+                })
+            else:
+                estudantes_com_dados.append({
+                    'id': estudante.id,
+                    'nome': estudante.nome,
+                    'nota': None,
+                    'status': "Sem status",
+                })
 
-    # Processar submissão do formulário
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                for estudante in estudantes:
-                    nota = request.POST.get(f"nota_{estudante.id}")
+                for estudante_data in estudantes_com_dados:
+                    nota = request.POST.get(f"nota_{estudante_data['id']}")
                     if nota:
                         try:
                             nota_float = float(nota)
                             if -1 <= nota_float <= 10:
-                                NotaFinal.objects.update_or_create(
-                                    estudante=estudante,
+                                nota_obj, created = NotaFinal.objects.update_or_create(
+                                    estudante_id=estudante_data['id'],
                                     disciplina_id=disciplina_id,
                                     defaults={'nota': nota_float},
                                 )
+                                # Atualiza o status baseado na nova nota
+                                if nota_float == -1:
+                                    nota_obj.status = "Desistente"
+                                elif nota_float < 5:
+                                    nota_obj.status = "Recuperação"
+                                else:
+                                    nota_obj.status = "Aprovado"
+                                nota_obj.save()
                             else:
-                                errors.append(f"A nota {nota} para o estudante {estudante.nome} deve estar entre -1 e 10.")
+                                errors.append(f"A nota {nota} para o estudante {estudante_data['nome']} deve estar entre -1 e 10.")
                         except ValueError:
-                            errors.append(f"A nota '{nota}' fornecida para o estudante {estudante.nome} é inválida.")
+                            errors.append(f"A nota '{nota}' fornecida para o estudante {estudante_data['nome']} é inválida.")
             if not errors:
                 messages.success(request, "Notas válidas foram salvas com sucesso!")
             else:
@@ -222,40 +230,20 @@ def lancar_notas_por_turma(request):
         except Exception as e:
             messages.error(request, f"Erro inesperado: {e}")
 
+        # Recarrega a página com os dados atualizados
+        return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
+
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
         'title': 'Lançar Notas por Turma',
         'turmas': turmas,
         'disciplinas': disciplinas,
-        'estudantes_com_dados': estudantes,
+        'estudantes_com_dados': estudantes_com_dados,
         'turma_id': turma_id,
         'disciplina_id': disciplina_id,
         'form': form,
         'errors': errors,
     })
-def relatorio_status_turma(request, turma_id):
-    turma = Turma.objects.get(id=turma_id)
-    disciplinas = Disciplina.objects.filter(turma=turma)
-    estudantes = Estudante.objects.filter(turma=turma).prefetch_related('notas__disciplina')
 
-    tabela = []
-    for estudante in estudantes:
-        linha = {
-            'estudante': estudante.nome,
-            'status_disciplinas': []
-        }
-        for disciplina in disciplinas:
-            nota_final = estudante.notas.filter(disciplina=disciplina).first()
-            linha['status_disciplinas'].append({
-                'disciplina': disciplina.nome,
-                'status': nota_final.status if nota_final else 'Sem nota'
-            })
-        tabela.append(linha)
-
-    return render(request, 'sistema_notas/relatorio_status_turma.html', {
-        'turma': turma,
-        'disciplinas': disciplinas,
-        'tabela': tabela,
-    })
 
 def gerar_pdf_relatorio_turma(request, turma_id):
     turma = get_object_or_404(Turma, id=turma_id)
@@ -292,3 +280,28 @@ def gerar_pdf_relatorio_turma(request, turma_id):
     if pisa_status.err:
         return HttpResponse('Erro ao gerar o PDF', status=500)
     return response
+
+def relatorio_status_turma(request, turma_id):
+    turma = get_object_or_404(Turma, id=turma_id)
+    disciplinas = Disciplina.objects.filter(turma=turma)
+    estudantes = Estudante.objects.filter(turma=turma).prefetch_related('notas__disciplina')
+
+    tabela = []
+    for estudante in estudantes:
+        linha = {
+            'estudante': estudante.nome,
+            'status_disciplinas': []
+        }
+        for disciplina in disciplinas:
+            nota_final = estudante.notas.filter(disciplina=disciplina).first()
+            linha['status_disciplinas'].append({
+                'disciplina': disciplina.nome,
+                'status': nota_final.status if nota_final else 'Sem status'
+            })
+        tabela.append(linha)
+
+    return render(request, 'sistema_notas/relatorio_status_turma.html', {
+        'turma': turma,
+        'disciplinas': disciplinas,
+        'tabela': tabela,
+    })
