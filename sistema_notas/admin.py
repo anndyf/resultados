@@ -71,11 +71,13 @@ class EstudanteInline(admin.TabularInline):
     extra = 0
 
 # Configuração do admin para o modelo Turma
+
 class TurmaAdmin(admin.ModelAdmin):
     """
     Configurações do admin para o modelo Turma.
     """
     list_display = ('nome',)
+    filter_horizontal = ('usuarios_permitidos',)
     ordering = ('nome',)
     inlines = [EstudanteInline]
     list_display = ('nome', 'acoes')
@@ -122,6 +124,15 @@ class NotaFinalAdmin(admin.ModelAdmin):
     list_editable = ('nota',)
     readonly_fields = ('status', 'modified_by', 'modified_at')
 
+    def get_queryset(self, request):
+        """
+        Filtra as turmas e disciplinas que o usuário logado pode acessar.
+        """
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        return qs.filter(disciplina__turma__usuarios_permitidos=request.user)
+
     def get_urls(self):
         """
         Adiciona URLs customizadas, como a funcionalidade de lançar notas por turma.
@@ -139,19 +150,31 @@ class NotaFinalAdmin(admin.ModelAdmin):
     def lancar_notas_turma_view(self, request):
         """
         View customizada para lançar notas de forma mais interativa.
+        Restringe turmas e disciplinas com base no usuário logado.
         """
-        turmas = Turma.objects.all()
+        turmas = Turma.objects.filter(usuarios_permitidos=request.user)
+        if not turmas.exists():
+            return HttpResponseForbidden("Você não tem permissão para lançar notas em nenhuma turma.")
+        
         disciplinas = []
         estudantes_com_dados = []
-
         turma_id = request.GET.get('turma')
         disciplina_id = request.GET.get('disciplina')
 
         if turma_id:
-            disciplinas = Disciplina.objects.filter(turma_id=turma_id)
+            try:
+                turma = turmas.get(id=turma_id)  # Verifica permissão
+                disciplinas = Disciplina.objects.filter(turma=turma)
+            except Turma.DoesNotExist:
+                return HttpResponseForbidden("Você não tem permissão para acessar esta turma.")
 
         if turma_id and disciplina_id:
-            estudantes = Estudante.objects.filter(turma_id=turma_id)
+            try:
+                disciplina = disciplinas.get(id=disciplina_id)  # Verifica permissão
+                estudantes = Estudante.objects.filter(turma_id=turma_id)
+            except Disciplina.DoesNotExist:
+                return HttpResponseForbidden("Você não tem permissão para acessar esta disciplina.")
+
             for estudante in estudantes:
                 nota_final = NotaFinal.objects.filter(estudante=estudante, disciplina_id=disciplina_id).first()
                 estudantes_com_dados.append({
@@ -166,12 +189,11 @@ class NotaFinalAdmin(admin.ModelAdmin):
                 nota = request.POST.get(f"nota_{estudante.id}")
                 if nota:
                     try:
-                        # Substituir vírgula por ponto antes de converter
                         nota_float = float(nota.replace(',', '.'))
                         nota_final, created = NotaFinal.objects.update_or_create(
                             estudante=estudante,
                             disciplina_id=disciplina_id,
-                            defaults={'nota': nota_float},
+                            defaults={'nota': nota_float, 'modified_by': request.user},
                         )
                         nota_final.save()  # Recalcula o status ao salvar
                     except ValueError:
@@ -179,7 +201,6 @@ class NotaFinalAdmin(admin.ModelAdmin):
                         continue
 
             messages.success(request, "Notas salvas com sucesso!")
-            # Redireciona para a mesma página com os filtros aplicados
             return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
 
         return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
@@ -189,14 +210,14 @@ class NotaFinalAdmin(admin.ModelAdmin):
             'estudantes_com_dados': estudantes_com_dados,
             'turma_id': turma_id,
             'disciplina_id': disciplina_id,
-    })
+        })
 
     def save_model(self, request, obj, form, change):
-        if obj.nota < -1 or obj.nota > 10:
-            raise forms.ValidationError('A nota deve estar entre -1 e 10.')
+        """
+        Adiciona o usuário atual ao campo 'modified_by' ao salvar.
+        """
         obj.modified_by = request.user
         super().save_model(request, obj, form, change)
-       
 
     def changelist_view(self, request, extra_context=None):
         """

@@ -7,10 +7,8 @@ User = get_user_model()
 
 # Modelo para representar uma Turma
 class Turma(models.Model):
-    """
-    Representa uma turma no sistema, que pode ter vários estudantes e disciplinas associadas.
-    """
-    nome = models.CharField(max_length=100)  # Nome da turma
+    nome = models.CharField(max_length=255)
+    usuarios_permitidos = models.ManyToManyField(User, blank=True, related_name="turmas_permitidas")
 
     def __str__(self):
         return self.nome
@@ -119,10 +117,10 @@ class NotaFinalAudit(models.Model):
     nota_atual = models.FloatField(verbose_name='Nota Atual')
     status = models.CharField(max_length=20, verbose_name='Status Atual')  # Este campo
     modified_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name='Modificado por'
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name="notafinal_audits"
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Modificação')

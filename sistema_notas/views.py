@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 import csv
 from django.shortcuts import render, redirect
-from django.http import JsonResponse
+from django.http import HttpResponseForbidden, JsonResponse
 from django.contrib import messages
 from dal import autocomplete
 from .models import Estudante, NotaFinal, Turma, Disciplina
@@ -17,6 +17,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.db.models import Case, When, Value, CharField
+from .utils import set_current_user
+from django.http import HttpResponseForbidden
+
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
     """
@@ -162,8 +165,13 @@ def redirecionar_ou_boas_vindas(request):
 @login_required
 @transaction.atomic
 def lancar_notas_por_turma(request):
+    # Filtra as turmas permitidas ao usuário logado
+    turmas = Turma.objects.filter(usuarios_permitidos=request.user)
+    
+    if not turmas.exists():
+        return HttpResponseForbidden("Você não tem permissão para lançar notas em nenhuma turma.")
+
     form = LancarNotasForm(request.POST or None)
-    turmas = Turma.objects.all()
     disciplinas = []
     estudantes_com_dados = []
     errors = []
@@ -172,7 +180,12 @@ def lancar_notas_por_turma(request):
     disciplina_id = request.GET.get('disciplina') or request.POST.get('disciplina')
 
     if turma_id:
-        disciplinas = Disciplina.objects.filter(turma__id=turma_id).distinct()
+        try:
+            # Verifica se o usuário tem permissão para a turma selecionada
+            turma = turmas.get(id=turma_id)
+            disciplinas = Disciplina.objects.filter(turma=turma)
+        except Turma.DoesNotExist:
+            return HttpResponseForbidden("Você não tem permissão para acessar esta turma.")
 
     if turma_id and disciplina_id:
         estudantes = Estudante.objects.filter(turma_id=turma_id).distinct()
@@ -211,21 +224,24 @@ def lancar_notas_por_turma(request):
                         try:
                             nota_float = float(nota)
                             if -1 <= nota_float <= 10:
-                                # Atualiza ou cria a NotaFinal
                                 nota_obj, created = NotaFinal.objects.update_or_create(
                                     estudante_id=estudante_data['id'],
                                     disciplina_id=disciplina_id,
                                     defaults={'nota': nota_float},
                                 )
-                                # Define o usuário atual e salva novamente
-                                nota_obj.modified_by = request.user
+                                # Exige que um usuário autenticado esteja presente
+                                if request.user.is_authenticated:
+                                    nota_obj.modified_by = request.user
+                                else:
+                                    raise PermissionError("Usuário não autenticado ao salvar notas.")
+                                # Atualiza os campos de auditoria e status
                                 if nota_float == -1:
                                     nota_obj.status = "Desistente"
                                 elif nota_float < 5:
                                     nota_obj.status = "Recuperação"
                                 else:
                                     nota_obj.status = "Aprovado"
-                                nota_obj.save()
+                                nota_obj.save()  # Salva o objeto com as alterações
                             else:
                                 errors.append(f"A nota {nota} para o estudante {estudante_data['nome']} deve estar entre -1 e 10.")
                         except ValueError:
@@ -234,10 +250,12 @@ def lancar_notas_por_turma(request):
                 messages.success(request, "Notas válidas foram salvas com sucesso!")
             else:
                 messages.error(request, "Algumas notas não foram salvas devido a erros.")
+        except PermissionError as pe:
+            messages.error(request, str(pe))
         except Exception as e:
             messages.error(request, f"Erro inesperado: {e}")
 
-        # Reload page with updated data
+        # Recarrega a página com os dados atualizados
         return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
 
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
@@ -250,6 +268,9 @@ def lancar_notas_por_turma(request):
         'form': form,
         'errors': errors,
     })
+
+
+
 def gerar_pdf_relatorio_turma(request, turma_id):
     turma = get_object_or_404(Turma, id=turma_id)
     disciplinas = Disciplina.objects.filter(turma=turma)
