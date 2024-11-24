@@ -1,22 +1,30 @@
-from .models import NotaFinal, NotaFinalAudit
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
+from .models import NotaFinal, NotaFinalAudit
+
 
 @receiver(pre_save, sender=NotaFinal)
 def registrar_historico(sender, instance, **kwargs):
     """
-    Registra uma auditoria no modelo NotaFinalAudit sempre que uma nota for alterada.
+    Cria um registro de auditoria antes de salvar uma NotaFinal.
+    Garante que as duplicações sejam evitadas.
     """
-    if instance.pk:  # Verifica se a instância já existe no banco
-        try:
-            nota_original = NotaFinal.objects.get(pk=instance.pk)
-            if nota_original.nota != instance.nota:  # Verifica se a nota foi alterada
+    if instance.pk:  # Verifica se é uma atualização (instância já existe no banco)
+        nota_original = NotaFinal.objects.filter(pk=instance.pk).first()
+        if nota_original and nota_original.nota != instance.nota:  # Somente se a nota foi alterada
+            # Verifica se já existe um registro para essa alteração
+            existe_auditoria = NotaFinalAudit.objects.filter(
+                nota_final=instance,
+                nota_anterior=nota_original.nota,
+                nota_atual=instance.nota,
+                modified_by=instance.modified_by,
+            ).exists()
+
+            if not existe_auditoria:
                 NotaFinalAudit.objects.create(
                     nota_final=instance,
-                    modified_by=instance.modified_by,  # Certifica-se de que `modified_by` seja atribuído antes de salvar
+                    modified_by=instance.modified_by,  # Usuário que fez a alteração
                     nota_anterior=nota_original.nota,
                     nota_atual=instance.nota,
+                    status=instance.status,  # Inclui o status no registro
                 )
-        except NotaFinal.DoesNotExist:
-            # Caso a nota original não exista, não faz nada
-            pass

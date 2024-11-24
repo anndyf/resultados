@@ -211,20 +211,20 @@ def lancar_notas_por_turma(request):
                         try:
                             nota_float = float(nota)
                             if -1 <= nota_float <= 10:
-                                # Atualiza ou cria a NotaFinal e adiciona `modified_by`
+                                # Atualiza ou cria a NotaFinal
                                 nota_obj, created = NotaFinal.objects.update_or_create(
                                     estudante_id=estudante_data['id'],
                                     disciplina_id=disciplina_id,
                                     defaults={'nota': nota_float},
                                 )
-                                # Atualiza os campos de auditoria e status
+                                # Define o usuário atual e salva novamente
+                                nota_obj.modified_by = request.user
                                 if nota_float == -1:
                                     nota_obj.status = "Desistente"
                                 elif nota_float < 5:
                                     nota_obj.status = "Recuperação"
                                 else:
                                     nota_obj.status = "Aprovado"
-                                nota_obj.modified_by = request.user  # Usuário que alterou
                                 nota_obj.save()
                             else:
                                 errors.append(f"A nota {nota} para o estudante {estudante_data['nome']} deve estar entre -1 e 10.")
@@ -250,9 +250,6 @@ def lancar_notas_por_turma(request):
         'form': form,
         'errors': errors,
     })
-
-
-
 def gerar_pdf_relatorio_turma(request, turma_id):
     turma = get_object_or_404(Turma, id=turma_id)
     disciplinas = Disciplina.objects.filter(turma=turma)

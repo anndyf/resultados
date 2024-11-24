@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils.timezone import now
-
 # Obtém o modelo de usuário do Django
 User = get_user_model()
 
@@ -62,9 +61,6 @@ class DisciplinaTurma(models.Model):
 
 # Modelo para representar uma Nota Final
 class NotaFinal(models.Model):
-    modified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    modified_at = models.DateTimeField(auto_now=True)
-
     estudante = models.ForeignKey(
         'Estudante', 
         on_delete=models.CASCADE, 
@@ -113,11 +109,20 @@ class NotaFinal(models.Model):
         return f"{self.estudante.nome} - {self.disciplina.nome}: {self.nota} ({self.status})"
 
 class NotaFinalAudit(models.Model):
-    nota_final = models.ForeignKey(NotaFinal, on_delete=models.CASCADE)
-    modified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    modified_at = models.DateTimeField(auto_now_add=True)
-    nota_anterior = models.FloatField()
-    nota_atual = models.FloatField()
-
-    def __str__(self):
-        return f"Audit - NotaFinal ID {self.nota_final.id} - {self.modified_at}"
+    nota_final = models.ForeignKey(
+        'NotaFinal',
+        on_delete=models.CASCADE,
+        related_name='auditoria',
+        verbose_name='Nota Final'
+    )
+    nota_anterior = models.FloatField(null=True, blank=True, verbose_name='Nota Anterior')
+    nota_atual = models.FloatField(verbose_name='Nota Atual')
+    status = models.CharField(max_length=20, verbose_name='Status Atual')  # Este campo
+    modified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Modificado por'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Modificação')
