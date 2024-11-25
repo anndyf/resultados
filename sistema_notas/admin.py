@@ -62,7 +62,7 @@ class CustomUserAdmin(UserAdmin):
 
     def criar_usuarios_em_lote_view(self, request):
         """
-        View personalizada para criar múltiplos usuários em lote.
+        View para criar usuários em lote e adicioná-los ao grupo selecionado.
         """
         if request.method == 'POST':
             form = BulkUserCreationForm(request.POST)
@@ -92,6 +92,11 @@ class CustomUserAdmin(UserAdmin):
                             user.save()
                             user.groups.add(grupo)
 
+                            # Verifica se o grupo é "Professores" e marca como membro da equipe
+                            if grupo.name.lower() == 'professores':
+                                user.is_staff = True  # Define automaticamente como membro da equipe
+                                user.save()
+
                             # Envia o e-mail com a senha
                             self._enviar_email_senha(nome, email, senha)
                             criados.append(email)
@@ -102,10 +107,10 @@ class CustomUserAdmin(UserAdmin):
 
                 # Exibe mensagens de sucesso e erro
                 if criados:
-                    self.message_user(request, f"{len(criados)} usuários criados com sucesso.", level=messages.SUCCESS)
+                    messages.success(request, f"{len(criados)} usuários criados com sucesso.")
                 if erros:
-                    self.message_user(request, "\n".join(erros), level=messages.WARNING)
-                return redirect('..')
+                    messages.warning(request, "\n".join(erros))
+                return redirect('admin:auth_user_changelist')
 
         else:
             form = BulkUserCreationForm()
@@ -140,8 +145,7 @@ class CustomUserAdmin(UserAdmin):
             )
         except Exception as e:
             raise Exception(f"Erro ao enviar e-mail para {email}: {e}")
-
-
+        
 class NotaFinalAuditAdmin(admin.ModelAdmin):
     list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')
     list_filter = ('modified_by', 'created_at')
