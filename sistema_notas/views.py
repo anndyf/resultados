@@ -4,6 +4,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponseForbidden, JsonResponse
 from django.contrib import messages
 from dal import autocomplete
+from requests import request
 from .models import Estudante, NotaFinal, Turma, Disciplina
 from .forms import LancarNotasForm, UploadCSVForm
 from django.http import HttpResponse

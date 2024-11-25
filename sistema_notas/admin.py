@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.http import HttpResponseForbidden
 from django.urls import path, reverse
 from django.shortcuts import redirect, render
 from django.contrib import messages
@@ -47,7 +48,7 @@ class CustomUserAdmin(UserAdmin):
 
     def criar_usuarios_em_lote(self, request, queryset):
         """
-        Ação de criar múltiplos usuários em lote.
+        Ação para criar múltiplos usuários em lote.
         """
         if 'apply' in request.POST:
             form = BulkUserCreationForm(request.POST)
@@ -87,20 +88,20 @@ class CustomUserAdmin(UserAdmin):
 
                 # Exibe mensagens de sucesso e erro
                 if criados:
-                    messages.success(request, f"{len(criados)} usuários criados com sucesso.")
+                    self.message_user(request, f"{len(criados)} usuários criados com sucesso.", level=messages.SUCCESS)
                 if erros:
-                    messages.warning(request, "\n".join(erros))
-                return None
+                    self.message_user(request, "\n".join(erros), level=messages.WARNING)
+                return redirect('..')
 
         else:
             form = BulkUserCreationForm()
 
-        return admin.helpers.ActionForm(
-            request,
-            form=form,
-            action_url='',
-            form_url='',
-        )
+        # Renderiza o formulário
+        return render(request, 'admin/criar_usuarios_em_lote.html', {
+            'title': 'Criar usuários em lote',
+            'form': form,
+            'opts': self.model._meta,
+        })
 
     def _enviar_email_senha(self, nome, email, senha):
         """
@@ -126,6 +127,8 @@ class CustomUserAdmin(UserAdmin):
             )
         except Exception as e:
             raise Exception(f"Erro ao enviar e-mail para {email}: {e}")
+
+    criar_usuarios_em_lote.short_description = "Criar usuários em lote"
 
 class NotaFinalAuditAdmin(admin.ModelAdmin):
     list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')
