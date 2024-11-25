@@ -89,58 +89,59 @@ class TurmaAdmin(admin.ModelAdmin):
     acoes.short_description = 'Ações'
 
 # Configuração do admin para o modelo Disciplina
+
 class DisciplinaAdmin(admin.ModelAdmin):
     list_display = ('nome', 'turma')
-    filter_horizontal = ('usuarios_permitidos',)  # Interface amigável para gerenciar permissões
-    search_fields = ('nome', 'turma__nome')  # Adiciona busca por nome de disciplina e turma
-    list_filter = ('turma',)  # Filtro por turmas no admin
+    filter_horizontal = ('usuarios_permitidos',)
+    search_fields = ('nome', 'turma__nome')
+    list_filter = ('turma',)
 
-    def get_queryset(self, request):
+    def get_form(self, request, obj=None, **kwargs):
         """
-        Restringe o queryset com base nas permissões do usuário logado.
+        Substitui o formulário padrão pelo DisciplinaMultipleForm.
         """
-        qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs  # Superuser tem acesso total
-        return qs.filter(usuarios_permitidos=request.user)  # Filtra disciplinas permitidas ao usuário
+        if obj is None:  # Apenas para a criação, usa o DisciplinaMultipleForm
+            kwargs['form'] = DisciplinaMultipleForm
+        return super().get_form(request, obj, **kwargs)
 
     def save_model(self, request, obj, form, change):
+        """
+        Salva o modelo e associa usuários permitidos da disciplina à turma.
+        """
         super().save_model(request, obj, form, change)
-        # Atualiza a turma automaticamente com os usuários permitidos na disciplina
-        obj.turma.usuarios_permitidos.add(*obj.usuarios_permitidos.all())
+        self.associar_usuarios_com_turma(obj)
 
     def add_view(self, request, form_url='', extra_context=None):
         """
         Personaliza a exibição e processamento do formulário de criação.
         """
         if request.method == 'POST':
-            form = self.get_form(request)(request.POST)
+            form = DisciplinaMultipleForm(request.POST)
             if form.is_valid():
-                nomes = form.cleaned_data['nome']
+                nomes = form.cleaned_data['nome'].split(',')
                 turmas = form.cleaned_data['turmas']
-                nomes = [nome.strip() for nome in nomes.split(',')]
 
-                for nome in nomes:
+                if not turmas:
+                    messages.error(request, "Selecione pelo menos uma turma.")
+                    return redirect('admin:sistema_notas_disciplina_add')
+
+                for nome in [n.strip() for n in nomes]:
                     for turma in turmas:
                         disciplina, created = Disciplina.objects.get_or_create(nome=nome, turma=turma)
                         if created:
-                            disciplina.usuarios_permitidos.add(request.user)  # Adiciona o criador automaticamente
+                            disciplina.usuarios_permitidos.add(request.user)
+                            self.associar_usuarios_com_turma(disciplina)
 
-                messages.success(request, "Disciplinas foram criadas com sucesso.")
+                messages.success(request, "Disciplinas criadas com sucesso.")
                 return redirect('admin:sistema_notas_disciplina_changelist')
-        
+
         return super().add_view(request, form_url, extra_context)
 
-    def get_form(self, request, obj=None, **kwargs):
+    def associar_usuarios_com_turma(self, disciplina):
         """
-        Customiza o formulário para exibir somente turmas permitidas ao usuário.
+        Adiciona os usuários permitidos da disciplina à turma relacionada.
         """
-        form = super().get_form(request, obj, **kwargs)
-        if not request.user.is_superuser:
-            form.base_fields['turmas'].queryset = Turma.objects.filter(usuarios_permitidos=request.user)
-        return form
-
-# Configuração do admin para o modelo NotaFinal
+        disciplina.turma.usuarios_permitidos.add(*disciplina.usuarios_permitidos.all())
 class NotaFinalAdmin(admin.ModelAdmin):
     list_display = ('estudante', 'disciplina', 'nota', 'status', 'modified_by', 'modified_at')
     list_filter = ('disciplina__turma', 'disciplina')
