@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils.timezone import now
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
 # Obtém o modelo de usuário do Django
 User = get_user_model()
 
@@ -41,6 +43,17 @@ class Disciplina(models.Model):
 
     def __str__(self):
         return f"{self.nome} - {self.turma.nome}"
+
+# Signal para associar automaticamente os usuários da disciplina à turma
+@receiver(m2m_changed, sender=Disciplina.usuarios_permitidos.through)
+def sync_turma_usuarios(sender, instance, action, **kwargs):
+    """
+    Atualiza os usuários permitidos na turma quando alterados na disciplina.
+    """
+    if action in ["post_add", "post_remove", "post_clear"]:
+        # Atualiza os usuários permitidos na turma da disciplina
+        usuarios = instance.usuarios_permitidos.all()
+        instance.turma.usuarios_permitidos.add(*usuarios)
 
 
 # Modelo para representar uma Nota Final

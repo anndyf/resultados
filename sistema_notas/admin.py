@@ -105,13 +105,9 @@ class DisciplinaAdmin(admin.ModelAdmin):
         return qs.filter(usuarios_permitidos=request.user)  # Filtra disciplinas permitidas ao usuário
 
     def save_model(self, request, obj, form, change):
-        """
-        Garante que o usuário atual seja adicionado automaticamente aos `usuarios_permitidos`
-        ao criar ou editar uma disciplina.
-        """
         super().save_model(request, obj, form, change)
-        if not obj.usuarios_permitidos.filter(id=request.user.id).exists():
-            obj.usuarios_permitidos.add(request.user)  # Adiciona o usuário atual às permissões
+        # Atualiza a turma automaticamente com os usuários permitidos na disciplina
+        obj.turma.usuarios_permitidos.add(*obj.usuarios_permitidos.all())
 
     def add_view(self, request, form_url='', extra_context=None):
         """
