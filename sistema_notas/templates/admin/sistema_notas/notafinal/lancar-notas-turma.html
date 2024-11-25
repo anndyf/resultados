@@ -1,4 +1,24 @@
-{% extends "admin/base_site.html" %}
+{% extends "admin/base.html" %}
+
+{% block title %}Lançar Notas{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">EduClass - CETEP/LNAB</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+<div id="user-tools">
+    {% if request.user.is_authenticated %}
+        Bem-vindo(a), {{ request.user.get_username }}.
+        {% if pode_alterar_senha %}
+            <a href="{% url 'admin:auth_user_change' request.user.id %}">Alterar senha</a> /
+        {% endif %}
+        <a href="{% url 'admin:logout' %}">Encerrar sessão</a>
+    {% else %}
+        <a href="{% url 'admin:login' %}">Entrar</a>
+    {% endif %}
+</div>
+{% endblock %}
 
 {% block content %}
 <div style="text-align: center; margin: 20px auto; max-width: 800px; font-family: Arial, sans-serif;">

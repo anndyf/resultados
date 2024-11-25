@@ -165,8 +165,7 @@ def redirecionar_ou_boas_vindas(request):
         return render(request, 'sistema_notas/boas_vindas_professor.html')
     return redirect('/admin/')
 
-
-@user_passes_test(grupo_professores)
+@user_passes_test(lambda user: user.groups.filter(name='Professores').exists())
 @login_required
 @transaction.atomic
 def lancar_notas_por_turma(request):
@@ -249,7 +248,7 @@ def lancar_notas_por_turma(request):
             messages.error(request, f"Erro inesperado: {e}")
 
         return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
-
+    pode_alterar_senha = request.user.has_perm('auth.change_user')
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
         'title': 'Lançar Notas por Disciplina',
         'turmas': turmas,
@@ -261,6 +260,7 @@ def lancar_notas_por_turma(request):
         'disciplina_nome': disciplina_nome,
         'form': LancarNotasForm(),
         'errors': errors,
+        'pode_alterar_senha': pode_alterar_senha,  # Adiciona a variável ao contexto
     })
 
 
