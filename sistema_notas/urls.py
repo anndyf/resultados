@@ -13,6 +13,7 @@ urlpatterns = [
     path('relatorio-status-turma/<int:turma_id>/', views.relatorio_status_turma, name='relatorio_status_turma'),
     path('relatorio-status-turma/<int:turma_id>/pdf/', views.gerar_pdf_relatorio_turma, name='gerar_pdf_relatorio_turma'),
     path('boas-vindas-professor/', redirecionar_ou_boas_vindas, name='boas_vindas_professor'),
+    path('carregar-disciplinas/', views.carregar_disciplinas, name='carregar_disciplinas'),
     
 
 ]

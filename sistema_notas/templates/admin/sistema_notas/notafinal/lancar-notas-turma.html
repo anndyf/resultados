@@ -1,9 +1,7 @@
 {% extends "admin/base_site.html" %}
 
-
 {% block content %}
 <div style="text-align: center; margin: 20px auto; max-width: 800px; font-family: Arial, sans-serif;">
-    
 
     <div style="margin-bottom: 20px;">
         <a 
@@ -38,26 +36,32 @@
     {% endif %}
 
     <form method="get" id="filter-form" style="margin-bottom: 20px;">
-        <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
-            <label for="turma" style="font-weight: bold;">Turma:</label>
-            <select id="turma" name="turma" class="form-control">
-                <option value="">Selecione a turma</option>
-                {% for turma in turmas %}
+        <div style="display: flex; justify-content: center; gap: 15px; align-items: center;">
+            <div style="text-align: left;">
+                <label for="turma" style="font-weight: bold;">Turma:</label>
+                <select id="turma" name="turma" class="form-control">
+                    <option value="">Selecione a turma</option>
+                    {% for turma in turmas %}
                     <option value="{{ turma.id }}" {% if turma.id|stringformat:"s" == turma_id %}selected{% endif %}>
                         {{ turma.nome }}
                     </option>
-                {% endfor %}
-            </select>            
-
-            <label for="disciplina" style="font-weight: bold;">Disciplina:</label>
-            <select id="disciplina" name="disciplina" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
-                <option value="">Selecione a disciplina</option>
-                {% for disciplina in disciplinas %}
-                <option value="{{ disciplina.id }}" {% if disciplina.id|stringformat:"s" == disciplina_id %}selected{% endif %}>
-                    {{ disciplina.nome }}
-                </option>
-                {% endfor %}
-            </select>
+                    {% endfor %}
+                </select>
+            </div>
+    
+            <div style="text-align: left;">
+                <label for="disciplina" style="font-weight: bold;">Disciplina:</label>
+                <select id="disciplina" name="disciplina" class="form-control">
+                    <option value="">Selecione a disciplina</option>
+                    {% if turma_id %}
+                        {% for disciplina in disciplinas_por_turma|dictsort:turma_id %}
+                            <option value="{{ disciplina.id }}" {% if disciplina.id|stringformat:"s" == disciplina_id %}selected{% endif %}>
+                                {{ disciplina.nome }}
+                            </option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
         </div>
     </form>
 
@@ -111,40 +115,42 @@
 </div>
 
 <script>
-    // Adiciona comportamento para filtros dinâmicos
     document.addEventListener('DOMContentLoaded', function () {
         const turmaSelect = document.getElementById('turma');
         const disciplinaSelect = document.getElementById('disciplina');
-        const form = document.getElementById('filter-form');
 
+        // Função para carregar disciplinas dinamicamente
+        function carregarDisciplinas(turmaId) {
+            fetch(`/sistema_notas/carregar-disciplinas/?turma=${turmaId}`)
+                .then(response => response.json())
+                .then(data => {
+                    disciplinaSelect.innerHTML = '<option value="">Selecione a disciplina</option>';
+                    data.forEach(disciplina => {
+                        const option = document.createElement('option');
+                        option.value = disciplina.id;
+                        option.textContent = disciplina.nome;
+                        disciplinaSelect.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Erro ao carregar disciplinas:', error));
+        }
+
+        // Carrega disciplinas ao mudar a turma
         turmaSelect.addEventListener('change', function () {
-            form.submit();
+            const turmaId = this.value;
+            carregarDisciplinas(turmaId);
         });
 
+        // Submete o formulário ao mudar a disciplina
         disciplinaSelect.addEventListener('change', function () {
-            form.submit();
+            document.getElementById('filter-form').submit();
         });
-    });
 
-    // Validação de entrada no frontend
-    document.addEventListener('DOMContentLoaded', function () {
-        const notaInputs = document.querySelectorAll('input[name^="nota_"]');
-
-        notaInputs.forEach(function (input) {
-            input.addEventListener('input', function () {
-                const value = parseFloat(this.value);
-                if (!isNaN(value) && value >= -1 && value <= 10) {
-                    this.style.border = '';
-                    this.setCustomValidity('');
-                } else if (this.value === '') {
-                    this.style.border = '';
-                    this.setCustomValidity('');
-                } else {
-                    this.style.border = '1px solid red';
-                    this.setCustomValidity('A nota deve estar entre -1 e 10.');
-                }
-            });
-        });
+        // Carrega as disciplinas da turma já selecionada (caso haja)
+        const turmaId = turmaSelect.value;
+        if (turmaId) {
+            carregarDisciplinas(turmaId);
+        }
     });
 </script>
 {% endblock %}

@@ -90,12 +90,28 @@ class TurmaAdmin(admin.ModelAdmin):
 
 # Configuração do admin para o modelo Disciplina
 class DisciplinaAdmin(admin.ModelAdmin):
-    """
-    Configurações do admin para o modelo Disciplina.
-    Permite a criação de múltiplas disciplinas associadas a turmas.
-    """
-    form = DisciplinaMultipleForm
     list_display = ('nome', 'turma')
+    filter_horizontal = ('usuarios_permitidos',)  # Interface amigável para gerenciar permissões
+    search_fields = ('nome', 'turma__nome')  # Adiciona busca por nome de disciplina e turma
+    list_filter = ('turma',)  # Filtro por turmas no admin
+
+    def get_queryset(self, request):
+        """
+        Restringe o queryset com base nas permissões do usuário logado.
+        """
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs  # Superuser tem acesso total
+        return qs.filter(usuarios_permitidos=request.user)  # Filtra disciplinas permitidas ao usuário
+
+    def save_model(self, request, obj, form, change):
+        """
+        Garante que o usuário atual seja adicionado automaticamente aos `usuarios_permitidos`
+        ao criar ou editar uma disciplina.
+        """
+        super().save_model(request, obj, form, change)
+        if not obj.usuarios_permitidos.filter(id=request.user.id).exists():
+            obj.usuarios_permitidos.add(request.user)  # Adiciona o usuário atual às permissões
 
     def add_view(self, request, form_url='', extra_context=None):
         """
@@ -110,12 +126,23 @@ class DisciplinaAdmin(admin.ModelAdmin):
 
                 for nome in nomes:
                     for turma in turmas:
-                        Disciplina.objects.get_or_create(nome=nome, turma=turma)
+                        disciplina, created = Disciplina.objects.get_or_create(nome=nome, turma=turma)
+                        if created:
+                            disciplina.usuarios_permitidos.add(request.user)  # Adiciona o criador automaticamente
 
                 messages.success(request, "Disciplinas foram criadas com sucesso.")
                 return redirect('admin:sistema_notas_disciplina_changelist')
         
         return super().add_view(request, form_url, extra_context)
+
+    def get_form(self, request, obj=None, **kwargs):
+        """
+        Customiza o formulário para exibir somente turmas permitidas ao usuário.
+        """
+        form = super().get_form(request, obj, **kwargs)
+        if not request.user.is_superuser:
+            form.base_fields['turmas'].queryset = Turma.objects.filter(usuarios_permitidos=request.user)
+        return form
 
 # Configuração do admin para o modelo NotaFinal
 class NotaFinalAdmin(admin.ModelAdmin):

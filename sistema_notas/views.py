@@ -18,7 +18,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.db.models import Case, When, Value, CharField
 from .utils import set_current_user
-from django.http import HttpResponseForbidden
+
 
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
@@ -31,8 +31,12 @@ class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):
             return Disciplina.objects.none()  # Garante que usuários não autenticados não tenham acesso
         turma_id = self.forwarded.get('turma', None)  # Obtém o ID da turma
         if turma_id:
-            return Disciplina.objects.filter(turma_id=turma_id)
-        return Disciplina.objects.none()
+            try:
+                # Filtra disciplinas permitidas e pertencentes à turma selecionada
+                disciplinas = disciplinas_permitidas.filter(turma_id=turma_id)
+            except Turma.DoesNotExist:
+                messages.error(request, "Você não tem permissão para acessar esta turma.")
+                return redirect('admin:index')
 
 # Classe para autocomplete de estudantes no formulário
 class EstudanteAutocomplete(autocomplete.Select2QuerySetView):
@@ -161,59 +165,45 @@ def redirecionar_ou_boas_vindas(request):
         return render(request, 'sistema_notas/boas_vindas_professor.html')
     return redirect('/admin/')
 
+
 @user_passes_test(grupo_professores)
 @login_required
 @transaction.atomic
 def lancar_notas_por_turma(request):
-    # Filtra as turmas permitidas ao usuário logado
-    turmas = Turma.objects.filter(usuarios_permitidos=request.user)
-    
-    if not turmas.exists():
-        return HttpResponseForbidden("Você não tem permissão para lançar notas em nenhuma turma.")
+    # Disciplinas permitidas ao usuário
+    disciplinas_permitidas = Disciplina.objects.filter(usuarios_permitidos=request.user)
 
-    form = LancarNotasForm(request.POST or None)
-    disciplinas = []
-    estudantes_com_dados = []
-    errors = []
+    # Turmas associadas às disciplinas permitidas
+    turmas = Turma.objects.filter(id__in=disciplinas_permitidas.values_list('turma_id', flat=True))
 
     turma_id = request.GET.get('turma') or request.POST.get('turma')
     disciplina_id = request.GET.get('disciplina') or request.POST.get('disciplina')
 
-    if turma_id:
-        try:
-            # Verifica se o usuário tem permissão para a turma selecionada
-            turma = turmas.get(id=turma_id)
-            disciplinas = Disciplina.objects.filter(turma=turma)
-        except Turma.DoesNotExist:
-            return HttpResponseForbidden("Você não tem permissão para acessar esta turma.")
+    # Disciplinas associadas à turma selecionada
+    disciplinas = disciplinas_permitidas.filter(turma_id=turma_id) if turma_id else []
+
+    estudantes_com_dados = []
+    errors = []
 
     if turma_id and disciplina_id:
-        estudantes = Estudante.objects.filter(turma_id=turma_id).distinct()
+        try:
+            # Verifica se a disciplina pertence às disciplinas permitidas
+            disciplina = disciplinas.get(id=disciplina_id)
+            estudantes = Estudante.objects.filter(turma_id=turma_id)
+            notas = NotaFinal.objects.filter(disciplina=disciplina, estudante__in=estudantes)
+            notas_map = {nota.estudante_id: nota for nota in notas}
 
-        # Puxa as notas atualizadas após salvar
-        notas = NotaFinal.objects.filter(disciplina_id=disciplina_id, estudante__in=estudantes)
-        notas_map = {nota.estudante_id: nota for nota in notas}
-
-        for estudante in estudantes:
-            nota_obj = notas_map.get(estudante.id)
-            if nota_obj:
+            for estudante in estudantes:
+                nota_obj = notas_map.get(estudante.id)
                 estudantes_com_dados.append({
                     'id': estudante.id,
                     'nome': estudante.nome,
-                    'nota': nota_obj.nota,
-                    'status': nota_obj.status,
-                    'modified_by': nota_obj.modified_by.username if nota_obj.modified_by else 'Não definido',
-                    'modified_at': nota_obj.modified_at,
+                    'nota': nota_obj.nota if nota_obj else None,
+                    'status': nota_obj.status if nota_obj else "Sem status",
                 })
-            else:
-                estudantes_com_dados.append({
-                    'id': estudante.id,
-                    'nome': estudante.nome,
-                    'nota': None,
-                    'status': "Sem status",
-                    'modified_by': "Não definido",
-                    'modified_at': None,
-                })
+        except Disciplina.DoesNotExist:
+            messages.error(request, "Você não tem permissão para acessar esta disciplina.")
+            return redirect('admin:index')
 
     if request.method == 'POST':
         try:
@@ -229,46 +219,37 @@ def lancar_notas_por_turma(request):
                                     disciplina_id=disciplina_id,
                                     defaults={'nota': nota_float},
                                 )
-                                # Exige que um usuário autenticado esteja presente
-                                if request.user.is_authenticated:
-                                    nota_obj.modified_by = request.user
-                                else:
-                                    raise PermissionError("Usuário não autenticado ao salvar notas.")
-                                # Atualiza os campos de auditoria e status
+                                nota_obj.modified_by = request.user
                                 if nota_float == -1:
                                     nota_obj.status = "Desistente"
                                 elif nota_float < 5:
                                     nota_obj.status = "Recuperação"
                                 else:
                                     nota_obj.status = "Aprovado"
-                                nota_obj.save()  # Salva o objeto com as alterações
+                                nota_obj.save()
                             else:
                                 errors.append(f"A nota {nota} para o estudante {estudante_data['nome']} deve estar entre -1 e 10.")
                         except ValueError:
-                            errors.append(f"A nota '{nota}' fornecida para o estudante {estudante_data['nome']} é inválida.")
+                            errors.append(f"A nota '{nota}' para {estudante_data['nome']} é inválida.")
             if not errors:
-                messages.success(request, "Notas válidas foram salvas com sucesso!")
+                messages.success(request, "Notas salvas com sucesso!")
             else:
                 messages.error(request, "Algumas notas não foram salvas devido a erros.")
-        except PermissionError as pe:
-            messages.error(request, str(pe))
         except Exception as e:
             messages.error(request, f"Erro inesperado: {e}")
 
-        # Recarrega a página com os dados atualizados
         return redirect(f"{request.path}?turma={turma_id}&disciplina={disciplina_id}")
 
     return render(request, 'admin/sistema_notas/notafinal/lancar-notas-turma.html', {
-        'title': 'Lançar Notas por Turma',
+        'title': 'Lançar Notas por Disciplina',
         'turmas': turmas,
         'disciplinas': disciplinas,
         'estudantes_com_dados': estudantes_com_dados,
         'turma_id': turma_id,
         'disciplina_id': disciplina_id,
-        'form': form,
+        'form': LancarNotasForm(),
         'errors': errors,
     })
-
 
 
 def gerar_pdf_relatorio_turma(request, turma_id):
@@ -331,3 +312,15 @@ def relatorio_status_turma(request, turma_id):
         'disciplinas': disciplinas,
         'tabela': tabela,
     })
+
+@login_required
+def carregar_disciplinas(request):
+    turma_id = request.GET.get('turma')
+    user = request.user
+
+    if turma_id:
+        disciplinas = Disciplina.objects.filter(turma_id=turma_id, usuarios_permitidos=user)
+        data = [{'id': d.id, 'nome': d.nome} for d in disciplinas]
+        return JsonResponse(data, safe=False)
+
+    return JsonResponse([], safe=False)  # Retorna lista vazia se não houver turma selecionada

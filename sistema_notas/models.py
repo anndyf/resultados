@@ -7,8 +7,13 @@ User = get_user_model()
 
 # Modelo para representar uma Turma
 class Turma(models.Model):
-    nome = models.CharField(max_length=255)
-    usuarios_permitidos = models.ManyToManyField(User, blank=True, related_name="turmas_permitidas")
+    nome = models.CharField(max_length=100)
+    usuarios_permitidos = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name="turmas_permitidas",
+        verbose_name="Usuários Permitidos"
+    )
 
     def __str__(self):
         return self.nome
@@ -30,32 +35,13 @@ class Estudante(models.Model):
 
 # Modelo para representar uma Disciplina
 class Disciplina(models.Model):
-    """
-    Representa uma disciplina associada a uma turma específica.
-    """
-    nome = models.CharField(max_length=300)  # Nome da disciplina
-    turma = models.ForeignKey(
-        Turma, 
-        on_delete=models.CASCADE, 
-        related_name='disciplinas'
-    )  # Relaciona a disciplina a uma turma
+    nome = models.CharField(max_length=100)
+    turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name='disciplinas')
+    usuarios_permitidos = models.ManyToManyField(User, blank=True, related_name='disciplinas_permitidas')
 
     def __str__(self):
-        # Exibe o nome da disciplina junto com o nome da turma
         return f"{self.nome} - {self.turma.nome}"
 
-# Modelo para representar o relacionamento entre uma Disciplina e uma Turma
-class DisciplinaTurma(models.Model):
-    """
-    Representa a relação entre uma disciplina e uma turma em um ano letivo específico.
-    """
-    disciplina = models.ForeignKey(Disciplina, on_delete=models.CASCADE)  # Disciplina associada
-    turma = models.ForeignKey(Turma, on_delete=models.CASCADE)  # Turma associada
-    ano_letivo = models.CharField(max_length=10, blank=True, null=True)  # Ano letivo da disciplina
-
-    def __str__(self):
-        # Exibe a relação entre disciplina, turma e ano letivo
-        return f"{self.disciplina.nome} - {self.turma.nome} ({self.ano_letivo})"
 
 # Modelo para representar uma Nota Final
 class NotaFinal(models.Model):
