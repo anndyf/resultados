@@ -42,15 +42,29 @@ class BulkUserCreationForm(forms.Form):
 
 class CustomUserAdmin(UserAdmin):
     """
-    Extensão do admin de usuários para permitir criação em lote.
+    Extensão do admin de usuários para permitir criação em lote através de um botão.
     """
-    actions = ['criar_usuarios_em_lote']
+    change_list_template = "admin/criar_usuarios_em_lote_button.html"  # Template customizado
 
-    def criar_usuarios_em_lote(self, request, queryset):
+    def get_urls(self):
         """
-        Ação para criar múltiplos usuários em lote.
+        Adiciona uma URL personalizada para a funcionalidade de criação de usuários em lote.
         """
-        if 'apply' in request.POST:
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'criar-usuarios-em-lote/',
+                self.admin_site.admin_view(self.criar_usuarios_em_lote_view),
+                name='criar_usuarios_em_lote',
+            ),
+        ]
+        return custom_urls + urls
+
+    def criar_usuarios_em_lote_view(self, request):
+        """
+        View personalizada para criar múltiplos usuários em lote.
+        """
+        if request.method == 'POST':
             form = BulkUserCreationForm(request.POST)
             if form.is_valid():
                 usuarios_raw = form.cleaned_data['usuarios']
@@ -96,9 +110,8 @@ class CustomUserAdmin(UserAdmin):
         else:
             form = BulkUserCreationForm()
 
-        # Renderiza o formulário
         return render(request, 'admin/criar_usuarios_em_lote.html', {
-            'title': 'Criar usuários em lote',
+            'title': 'Criar Usuários em Lote',
             'form': form,
             'opts': self.model._meta,
         })
@@ -128,7 +141,6 @@ class CustomUserAdmin(UserAdmin):
         except Exception as e:
             raise Exception(f"Erro ao enviar e-mail para {email}: {e}")
 
-    criar_usuarios_em_lote.short_description = "Criar usuários em lote"
 
 class NotaFinalAuditAdmin(admin.ModelAdmin):
     list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')

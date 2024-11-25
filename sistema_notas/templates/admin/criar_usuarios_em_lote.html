@@ -6,7 +6,8 @@
     {% csrf_token %}
     {{ form.as_p }}
     <div>
-        <input type="submit" class="default" value="Aplicar">
+        <button type="submit" class="button default" name="apply">Criar Usuários</button>
+        <a href=".." class="button cancel">Cancelar</a>
     </div>
 </form>
 {% endblock %}
