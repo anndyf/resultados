@@ -5,12 +5,127 @@ from django.contrib import messages
 from django import forms
 from django.utils.html import format_html
 from django.contrib.admin.views.decorators import staff_member_required
-from .models import Turma, Estudante, Disciplina, NotaFinal
+from .models import Turma, Estudante, Disciplina, NotaFinal, NotaFinalAudit
 from .views import upload_csv
 from .forms import DisciplinaMultipleForm, NotaFinalForm
-from .models import NotaFinalAudit
-from django.contrib.admin.sites import AlreadyRegistered
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import Group
+from django.core.mail import send_mail
+from django.conf import settings
+import random
+import string
+from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import User
+
+if User in admin.site._registry:
+    del admin.site._registry[User]
+    
+class BulkUserCreationForm(forms.Form):
+    """
+    Formulário para criação de múltiplos usuários.
+    """
+    usuarios = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'placeholder': 'Digite no formato: nome,email\nExemplo:\nJoão,joao@example.com\nMaria,maria@example.com',
+            'rows': 8,
+            'cols': 40
+        }),
+        help_text="Digite cada usuário em uma linha no formato: nome,email",
+    )
+    grupo = forms.ModelChoiceField(
+        queryset=Group.objects.all(),
+        required=True,
+        help_text="Selecione o grupo ao qual os usuários serão adicionados."
+    )
+
+
+class CustomUserAdmin(UserAdmin):
+    """
+    Extensão do admin de usuários para permitir criação em lote.
+    """
+    actions = ['criar_usuarios_em_lote']
+
+    def criar_usuarios_em_lote(self, request, queryset):
+        """
+        Ação de criar múltiplos usuários em lote.
+        """
+        if 'apply' in request.POST:
+            form = BulkUserCreationForm(request.POST)
+            if form.is_valid():
+                usuarios_raw = form.cleaned_data['usuarios']
+                grupo = form.cleaned_data['grupo']
+
+                # Processa os usuários da entrada
+                usuarios = [user.strip() for user in usuarios_raw.split('\n') if user.strip()]
+                criados = []
+                erros = []
+
+                for usuario in usuarios:
+                    try:
+                        nome, email = usuario.split(',')
+                        nome = nome.strip()
+                        email = email.strip()
+
+                        # Gera senha aleatória
+                        senha = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+
+                        # Cria o usuário
+                        user, created = User.objects.get_or_create(username=email, email=email)
+                        if created:
+                            user.set_password(senha)
+                            user.first_name = nome
+                            user.save()
+                            user.groups.add(grupo)
+
+                            # Envia o e-mail com a senha
+                            self._enviar_email_senha(nome, email, senha)
+                            criados.append(email)
+                        else:
+                            erros.append(f"O usuário '{email}' já existe.")
+                    except ValueError:
+                        erros.append(f"Formato inválido para '{usuario}'. Deve ser 'nome,email'.")
+
+                # Exibe mensagens de sucesso e erro
+                if criados:
+                    messages.success(request, f"{len(criados)} usuários criados com sucesso.")
+                if erros:
+                    messages.warning(request, "\n".join(erros))
+                return None
+
+        else:
+            form = BulkUserCreationForm()
+
+        return admin.helpers.ActionForm(
+            request,
+            form=form,
+            action_url='',
+            form_url='',
+        )
+
+    def _enviar_email_senha(self, nome, email, senha):
+        """
+        Função auxiliar para enviar a senha gerada por e-mail.
+        """
+        try:
+            assunto = "Bem-vindo ao Sistema - Credenciais de Acesso"
+            mensagem = (
+                f"Olá {nome},\n\n"
+                f"Seu acesso ao sistema foi criado com sucesso.\n\n"
+                f"Credenciais de acesso:\n"
+                f"Usuário: {email}\n"
+                f"Senha: {senha}\n\n"
+                f"Por favor, altere sua senha assim que fizer login no sistema.\n\n"
+                f"Atenciosamente,\nEquipe de Administração"
+            )
+            send_mail(
+                subject=assunto,
+                message=mensagem,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            raise Exception(f"Erro ao enviar e-mail para {email}: {e}")
 
 class NotaFinalAuditAdmin(admin.ModelAdmin):
     list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')
@@ -300,13 +415,17 @@ class NotaFinalAdmin(admin.ModelAdmin):
         """
         return request.user.is_superuser
 
-# Registro dos modelos no admin
+# Configuração do admin para os outros modelos
 admin.site.register(Turma, TurmaAdmin)
 admin.site.register(Estudante, EstudanteAdmin)
 admin.site.register(Disciplina, DisciplinaAdmin)
 admin.site.register(NotaFinal, NotaFinalAdmin)
 admin.site.register(NotaFinalAudit, NotaFinalAuditAdmin)
 
+# Registra o modelo User com CustomUserAdmin
+admin.site.register(User, CustomUserAdmin)
+
+# Customização do Django Admin
 admin.site.site_header = "EduClass - CETEP/LNAB"
 admin.site.site_title = "Administração do Sistema"
 admin.site.index_title = "Painel de Administração"

@@ -131,3 +131,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = '/boas-vindas-professor/'
+
+# Configurações de envio de e-mail no Django
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Servidor SMTP do Gmail
+EMAIL_PORT = 587  # Porta padrão para TLS
+EMAIL_USE_TLS = True  # TLS para segurança na conexão
+EMAIL_HOST_USER = 'ceteplnabsite@gmail.com'  # Seu e-mail
+EMAIL_HOST_PASSWORD = 'xrgb swfx ypvz fbat'  # Sua senha do Gmail
+DEFAULT_FROM_EMAIL = 'CETEP LNAB <ceteplnabsite@gmail.com>'  # Nome do remetente
