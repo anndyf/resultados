@@ -10,6 +10,7 @@ from .views import upload_csv
 from .forms import DisciplinaMultipleForm, NotaFinalForm
 from .models import NotaFinalAudit
 from django.contrib.admin.sites import AlreadyRegistered
+from django.utils.translation import gettext_lazy as _
 
 class NotaFinalAuditAdmin(admin.ModelAdmin):
     list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')
@@ -142,9 +143,43 @@ class DisciplinaAdmin(admin.ModelAdmin):
         Adiciona os usuários permitidos da disciplina à turma relacionada.
         """
         disciplina.turma.usuarios_permitidos.add(*disciplina.usuarios_permitidos.all())
+class TurmaFilter(admin.SimpleListFilter):
+    """
+    Filtro personalizado para turmas baseado nas permissões do usuário logado.
+    """
+    title = _('turma')
+    parameter_name = 'turma'
+
+    def lookups(self, request, model_admin):
+        turmas = Turma.objects.filter(usuarios_permitidos=request.user)
+        return [(turma.id, turma.nome) for turma in turmas]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(disciplina__turma_id=self.value())
+        return queryset
+
+
+class DisciplinaFilter(admin.SimpleListFilter):
+    """
+    Filtro personalizado para disciplinas baseado nas permissões do usuário logado.
+    """
+    title = _('disciplina')
+    parameter_name = 'disciplina'
+
+    def lookups(self, request, model_admin):
+        disciplinas = Disciplina.objects.filter(usuarios_permitidos=request.user)
+        return [(disciplina.id, disciplina.nome) for disciplina in disciplinas]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(disciplina_id=self.value())
+        return queryset
+
+
 class NotaFinalAdmin(admin.ModelAdmin):
     list_display = ('estudante', 'disciplina', 'nota', 'status', 'modified_by', 'modified_at')
-    list_filter = ('disciplina__turma', 'disciplina')
+    list_filter = (TurmaFilter, DisciplinaFilter)  # Substituímos os filtros padrão pelos personalizados
     list_editable = ('nota',)
     readonly_fields = ('status', 'modified_by', 'modified_at')
 
@@ -155,7 +190,7 @@ class NotaFinalAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        return qs.filter(disciplina__turma__usuarios_permitidos=request.user)
+        return qs.filter(disciplina__usuarios_permitidos=request.user)
 
     def get_urls(self):
         """
@@ -250,6 +285,20 @@ class NotaFinalAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context['lancar_notas_turma_url'] = reverse('admin:lancar_notas_turma')
         return super().changelist_view(request, extra_context=extra_context)
+
+    def has_add_permission(self, request):
+        """
+        Remove a permissão para adicionar novas notas para usuários que não são superusuários.
+        """
+        if request.user.is_superuser:
+            return True
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Remove a permissão de excluir notas, exceto para superusuários.
+        """
+        return request.user.is_superuser
 
 # Registro dos modelos no admin
 admin.site.register(Turma, TurmaAdmin)
