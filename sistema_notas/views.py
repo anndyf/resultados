@@ -185,10 +185,20 @@ def lancar_notas_por_turma(request):
     estudantes_com_dados = []
     errors = []
 
+    # Inicializamos as variáveis para o nome da turma e disciplina
+    turma_nome = None
+    disciplina_nome = None
+
+    if turma_id:
+        turma = turmas.filter(id=turma_id).first()
+        if turma:
+            turma_nome = turma.nome
+
     if turma_id and disciplina_id:
         try:
             # Verifica se a disciplina pertence às disciplinas permitidas
             disciplina = disciplinas.get(id=disciplina_id)
+            disciplina_nome = disciplina.nome
             estudantes = Estudante.objects.filter(turma_id=turma_id)
             notas = NotaFinal.objects.filter(disciplina=disciplina, estudante__in=estudantes)
             notas_map = {nota.estudante_id: nota for nota in notas}
@@ -247,9 +257,13 @@ def lancar_notas_por_turma(request):
         'estudantes_com_dados': estudantes_com_dados,
         'turma_id': turma_id,
         'disciplina_id': disciplina_id,
+        'turma_nome': turma_nome,
+        'disciplina_nome': disciplina_nome,
         'form': LancarNotasForm(),
         'errors': errors,
     })
+
+
 
 
 def gerar_pdf_relatorio_turma(request, turma_id):
