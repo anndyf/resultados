@@ -20,6 +20,23 @@ from django.contrib.auth.models import User
 from django.db.models import Case, When, Value, CharField
 from .utils import set_current_user
 
+def redirect_to_admin(request):
+    """
+    Redireciona o usuário para o painel do admin.
+    """
+    return redirect('/admin/')
+
+def listar_turmas_professores(request):
+    turmas_professores = []
+
+    for turma in Turma.objects.prefetch_related('usuarios_permitidos').all():
+        professores = turma.usuarios_permitidos.values_list('first_name', 'email')
+        turmas_professores.append({
+            "turma": turma.nome,
+            "professores": list(professores)
+        })
+
+    return JsonResponse(turmas_professores, safe=False)
 
 # Classe para autocomplete de disciplinas no formulário
 class DisciplinaAutocomplete(autocomplete.Select2QuerySetView):

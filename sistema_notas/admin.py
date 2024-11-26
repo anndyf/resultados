@@ -147,10 +147,23 @@ class CustomUserAdmin(UserAdmin):
             raise Exception(f"Erro ao enviar e-mail para {email}: {e}")
         
 class NotaFinalAuditAdmin(admin.ModelAdmin):
-    list_display = ('nota_final', 'modified_by', 'nota_anterior', 'nota_atual', 'created_at')
+    """
+    Admin para o modelo NotaFinalAudit, exibindo informações detalhadas de auditoria de notas.
+    """
+    list_display = ('nota_final', 'get_modified_by_name', 'nota_anterior', 'nota_atual', 'created_at')
     list_filter = ('modified_by', 'created_at')
     search_fields = ('nota_final__estudante__nome', 'modified_by__username')
 
+    def get_modified_by_name(self, obj):
+        """
+        Retorna o nome completo do usuário que modificou a nota.
+        """
+        if obj.modified_by:
+            # Retorna o nome completo ou username se o nome completo não existir
+            return obj.modified_by.get_full_name() or obj.modified_by.username
+        return "Usuário desconhecido"
+
+    get_modified_by_name.short_description = "Modificado por "
 # Formulário para selecionar a disciplina e lançar notas para os estudantes associados
 class LancaNotaPorDisciplinaForm(forms.Form):
     """
@@ -211,18 +224,30 @@ class TurmaAdmin(admin.ModelAdmin):
     """
     Configurações do admin para o modelo Turma.
     """
-    list_display = ('nome',)
+    list_display = ('nome', 'listar_professores', 'acoes')  # Incluímos listar_professores
     filter_horizontal = ('usuarios_permitidos',)
     ordering = ('nome',)
     inlines = [EstudanteInline]
-    list_display = ('nome', 'acoes')
+
+    def listar_professores(self, obj):
+        """
+        Retorna uma lista formatada dos professores associados à turma.
+        """
+        professores = obj.usuarios_permitidos.all()  # Obtém todos os usuários permitidos
+        if professores.exists():
+            return format_html("<br>".join([prof.first_name for prof in professores]))
+        return "Nenhum professor associado."
+
+    listar_professores.short_description = "Professores Associados"
 
     def acoes(self, obj):
+        """
+        Retorna ações customizadas para cada turma, como gerar relatório.
+        """
         url = reverse('relatorio_status_turma', args=[obj.id])
         return format_html('<a href="{}" class="button">Ver Relatório</a>', url)
 
     acoes.short_description = 'Ações'
-
 # Configuração do admin para o modelo Disciplina
 
 class DisciplinaAdmin(admin.ModelAdmin):
@@ -408,8 +433,21 @@ class NotaFinalAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         """
         Adiciona o usuário atual ao campo 'modified_by' ao salvar.
+        Também cria uma entrada no NotaFinalAudit para fins de auditoria.
         """
+        # Captura o usuário que está modificando
         obj.modified_by = request.user
+
+        # Se já existir, salva os dados antigos para auditoria
+        if change:
+            old_obj = NotaFinal.objects.get(pk=obj.pk)
+            NotaFinalAudit.objects.create(
+                nota_final=obj,
+                modified_by=request.user,
+                nota_anterior=old_obj.nota,
+                nota_atual=obj.nota,
+            )
+
         super().save_model(request, obj, form, change)
 
     def changelist_view(self, request, extra_context=None):
